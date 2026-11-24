@@ -5,6 +5,8 @@ SPDX-License-Identifier: CC-BY-4.0
 
 # Twin Leakage Ledger
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24502998.svg)](https://doi.org/10.5281/zenodo.24502998)
+
 Copyright 2026 Paul Burg. Text: CC BY 4.0. Code: Apache-2.0. Data: CC0-1.0.
 
 A research module on **synthetic data**. A personal health agent sends small messages to a doctor, a pharmacy bot, an insurer and a family member. One message says little; hundreds together can reveal a diagnosis the person never shared. The ledger keeps, per recipient, one number: by how much, at most, that recipient's ability to guess any fact about the person has grown over what the recipient already knew. The number is checked by attackers that read the same messages.
@@ -90,6 +92,14 @@ The `more` variant and the mismatched run in `results/` show what happens when a
 
 Parts of the code and text were written with Claude Code (Anthropic) under the author's direction; commits carry a co-author line. The author is responsible for the content.
 
-## Citation and license
+## LLM attackers (optional, GPU)
 
-See `CITATION.cff`. Code Apache-2.0 (`LICENSE`), data CC0-1.0, texts CC BY 4.0; every file carries an SPDX identifier (`REUSE.toml` covers files that cannot hold comments).
+Three open-weight models (Qwen, Mistral, Phi; Apache-2.0 or MIT; pins in `docs/MODELS.md`) can be run as attackers with `make reproduce-llm`, once, on a free GPU: see `docs/KAGGLE.md`. Answers go to `cache/llm/` (CC0-1.0). `make reproduce` stays CPU-only and offline; if the cache exists it adds the LLM attackers as their own Holm family (`PREREGISTRATION.md`, v2), otherwise it runs exactly as in v0.1.0.
+
+## How to cite
+
+Cite the software with the concept DOI, which always resolves to the latest version: [10.5281/zenodo.24502998](https://doi.org/10.5281/zenodo.24502998). Burg, P. (2026). Twin Leakage Ledger [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.24502998. Machine-readable: `CITATION.cff`.
+
+## License
+
+Code Apache-2.0 (`LICENSE`), data CC0-1.0, texts CC BY 4.0; every file carries an SPDX identifier (`REUSE.toml` covers files that cannot hold comments).

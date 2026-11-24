@@ -10,6 +10,7 @@ authors:
   - family-names: Burg
     given-names: Paul
 license: Apache-2.0
+doi: 10.5281/zenodo.24502998
 repository-code: "https://github.com/VitaCrypt-Labs/twin-leakage-ledger"
 keywords:
   - privacy

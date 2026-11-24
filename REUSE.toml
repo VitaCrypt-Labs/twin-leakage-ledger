@@ -18,3 +18,9 @@ path = ["data/**", "results/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Paul Burg"
 SPDX-License-Identifier = "CC0-1.0"
+
+[[annotations]]
+path = ["notebooks/*.ipynb", ".zenodo.json", "cache/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Paul Burg"
+SPDX-License-Identifier = "CC0-1.0"
