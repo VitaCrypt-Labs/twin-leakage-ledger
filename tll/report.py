@@ -22,7 +22,7 @@ def _mode_table(world, cells, led, title):
          "At 24 months. Mean R and mean D are per-persona means (R must stay at or below 1, D at or below 0); "
          "the bracket is the distribution-free lower bound at 95% before Holm. Trivial: the recipient already knows the attribute.", "",
          "| Recipient | Attribute | 95th pct L | Median L_A | 95th pct L_A | A0 mean R | A1 mean R | A0 mean D | A1 mean D | Refuted cells (all checkpoints) |",
-         "|---|---|---|---|---|---|---|---|---|---|---|"]
+         "|---|---|---|---|---|---|---|---|---|---|"]
     for r in world.recipients:
         for a in world.sensitive:
             row = [world.labels[r], a + (" (known)" if a in world.variants[r]["base"] else "")]
