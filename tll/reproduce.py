@@ -77,7 +77,8 @@ def roundf(o, nd=10):
     return o
 
 
-def build_cells(world, mode, q_by_att, bounds, h, recipients, variant="base", attackers=ATTACKERS):
+def build_cells(world, mode, q_by_att, bounds, h, recipients, variant="base", attackers=ATTACKERS,
+                checkpoints=CHECKPOINTS):
     """q_by_att[attacker][recipient][ck][attr] -> (n, K). bounds[recipient][ck]: ledger output."""
     cells, arrays = [], {}
     for att in attackers:
@@ -85,7 +86,7 @@ def build_cells(world, mode, q_by_att, bounds, h, recipients, variant="base", at
             known = world.variants[r][variant]
             for a in world.sensitive:
                 true_val = world.pop.values[a][h].astype(np.int64)
-                for ck in CHECKPOINTS:
+                for ck in checkpoints:
                     b = bounds[r][ck]
                     R, D, ceil, correct = tc.person_stats(q_by_att[att][r][ck][a], true_val, b["LA"][a],
                                                           b["PR_true"][a], b["pmax"][a])
@@ -206,6 +207,8 @@ def main(argv=None) -> int:
         log("expected.json written")
     else:
         status = max(status, compare_expected(verdict))
+    from . import llm_family
+    llm_family.run_if_cache(world, RESULTS)
     log(f"total time {time.time() - t0:.0f} s")
     return status
 

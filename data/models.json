@@ -1,0 +1,47 @@
+{
+ "_license": [
+  "Copyright 2026 Paul Burg",
+  "SPDX-License-Identifier: CC0-1.0"
+ ],
+ "_note": "Pinned open-weight models for the LLM attackers. Licence checked on the model card and in the repository on 24.11.2026. Sizes in bytes. sha256 is the file hash published by the Hugging Face hub (LFS object id) and is verified after download.",
+ "models": {
+  "qwen": {
+   "family": "Qwen", "hf_id": "Qwen/Qwen3-4B-Instruct-2507",
+   "revision": "cdbee75f17c01a7cc42f958dc650907174af0554",
+   "license": "Apache-2.0", "released": "2025-08-05",
+   "allow_patterns": ["*.json", "merges.txt", "model-*.safetensors"],
+   "assumed_seconds_per_prompt": 1.0,
+   "files": [
+    {"path": "model-00001-of-00003.safetensors", "sha256": "75311d91bb08cf0b882913da464a1e722a31fb44db35208663487efb7a3d8ed6"},
+    {"path": "model-00002-of-00003.safetensors", "sha256": "0b48adbb1f60e901153d91907ba11ce63bd4b8b584482e730f48808d055dfba1"},
+    {"path": "model-00003-of-00003.safetensors", "sha256": "7dd39ccca5e4de123c74c14af44c9bf2eb75df33b4614382af0134528e060d5d"},
+    {"path": "tokenizer.json", "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"}
+   ]
+  },
+  "mistral": {
+   "family": "Mistral", "hf_id": "mistralai/Mistral-7B-Instruct-v0.3",
+   "revision": "c170c708c41dac9275d15a8fff4eca08d52bab71",
+   "license": "Apache-2.0", "released": "2024-05-22",
+   "allow_patterns": ["*.json", "tokenizer.model*", "model-*.safetensors"],
+   "assumed_seconds_per_prompt": 1.8,
+   "files": [
+    {"path": "model-00001-of-00003.safetensors", "sha256": "ce6fb6f6f4d0183f4813cbf4ece24109da629a08d4210da46f77e1d8b0bd5c19"},
+    {"path": "model-00002-of-00003.safetensors", "sha256": "8c0e72f148366b6a3709e002a98706a33d31aec8515090c856c95b2044f92ae0"},
+    {"path": "model-00003-of-00003.safetensors", "sha256": "905dd405363e43d95779c1c1155a2dbfd36155914ae95dbd934e12e490cfb4ca"},
+    {"path": "tokenizer.model", "sha256": "37f00374dea48658ee8f5d0f21895b9bc55cb0103939607c8185bfd1c6ca1f89"}
+   ]
+  },
+  "phi": {
+   "family": "Phi", "hf_id": "microsoft/Phi-4-mini-instruct",
+   "revision": "cfbefacb99257ffa30c83adab238a50856ac3083",
+   "license": "MIT", "released": "2025-02-19",
+   "allow_patterns": ["*.json", "merges.txt", "model-*.safetensors"],
+   "assumed_seconds_per_prompt": 0.9,
+   "files": [
+    {"path": "model-00001-of-00002.safetensors", "sha256": "bc703090b63eda16f639fa4de7ac54635c23105ab1da2f6ec4d3403151d38ee6"},
+    {"path": "model-00002-of-00002.safetensors", "sha256": "7ff79b9d2d31076bac2663393451f6530f4fc8ca49b09002116c92c373dba983"},
+    {"path": "tokenizer.json", "sha256": "382cc235b56c725945e149cc25f191da667c836655efd0857b004320e90e91ea"}
+   ]
+  }
+ }
+}

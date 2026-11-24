@@ -71,3 +71,34 @@ Claims per cell: `mean(R_i) <= 1` (statistic R) and `mean(D_i) <= 0` (statistic 
 ## 9. Deviations
 
 Any change to this rule after the tag is published as a new tag (`prereg-v2`) with a stated reason, and v1 results stay in the history.
+
+---
+
+# Preregistration v2: LLM attackers (tag `prereg-v2`)
+
+This section is committed and tagged `prereg-v2` before any LLM answer exists. Section 1 to 9 above (v1) stay as they are; v1 results are not touched. Nothing here changes the rule of v1: same per-persona statistics `R_i` and `D_i`, same clip `B = 10`, same tests, same Holm correction, same `alpha = 0.05`.
+
+## v2.1 Attackers
+
+Three open-weight models of three families, weights under Apache-2.0 or MIT, pinned by revision and file hash in `data/models.json` and recorded with licence and release date in `docs/MODELS.md`: Qwen3-4B-Instruct-2507 (Apache-2.0), Mistral-7B-Instruct-v0.3 (Apache-2.0), Phi-4-mini-instruct (MIT). Each model gets, per person, recipient and checkpoint: the recipient's published prior knowledge (`base` variant), the recipient's base rates for the three sensitive attributes, and the messages that recipient received up to the checkpoint. It gets nothing else about the person. It returns a probability distribution over the values of each sensitive attribute.
+
+- Three runs per model: the three prompt wordings `p1`, `p2`, `p3` (`WORDINGS` in `tll/attackers/a_llm.py`), seeds 101, 102, 103. Sampling: temperature 0.3, top-p 0.95, at most 160 new tokens.
+- Parsing: first JSON object in the answer; values are normalised; names such as `none`, `month 5` or `5` are accepted. An attribute that cannot be read falls back to the base rates and is counted; counts per model and attribute are reported.
+- The per-person answer of a model is the mean of its three runs. That mean is the `q` of the cell.
+
+## v2.2 Personas, cells, sizes
+
+- Personas: the first `n` of 200 personas drawn from the population with seed `20261210`, main mode only. The control mode is not run with LLM attackers.
+- Full set (primary): `n = 200`, four recipients, checkpoints 1, 3, 6, 12, 24; 36 000 prompts; cells = 3 models x 3 attributes x 4 recipients x 5 checkpoints x 2 statistics = 360.
+- Reduced set (only if the full set is not finished; reported as reduced): `n = 60`, recipients doctor and family member, checkpoints 3, 12, 24; 3 240 prompts; 108 cells.
+- One Holm family per set that was run, over all its cells. If both exist they are separate families and the full set is the primary result.
+
+## v2.3 Verdict
+
+- LLM family `bound held` if no cell is refuted, otherwise `bound refuted` with the refuting cells listed, reported as is.
+- A model whose cache is incomplete is left out and named; with no complete model there is no verdict.
+- Minimal detectable excess per cell is printed. With 200 personas only coarse understatement is detectable.
+
+## v2.4 Deviations
+
+A change to this section after the tag is published as `prereg-v3` with a reason.
