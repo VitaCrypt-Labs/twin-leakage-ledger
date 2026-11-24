@@ -1,0 +1,38 @@
+{
+ "_spdx": "SPDX-License-Identifier: CC0-1.0",
+ "_copyright": "Copyright 2026 Paul Burg",
+ "_note": "Closed list of statements that can leave the person. Texts are fixed templates.",
+ "kinds": {
+  "doctor.summary": {"title": "Monthly summary for your doctor", "agent_title": "my monthly update for you"},
+  "doctor.visit_request": {"title": "Please schedule a check-up", "agent_title": "a request for a check-up"},
+  "pharmacy.refill": {"title": "Refill reminder", "agent_title": "my refill reminder"},
+  "insurer.claims_export": {"title": "Quarterly claims export", "agent_title": "my quarterly claims note"},
+  "family.check_in": {"title": "Check-in note", "agent_title": "a short check-in"}
+ },
+ "claims": [
+  {"id": "takes_antidiabetic", "var": "antidiabetic", "type": "onset",
+   "label": "Antidiabetic medication",
+   "agent_yes": "I am currently taking an antidiabetic medication.",
+   "agent_no": "I am not taking an antidiabetic medication."},
+  {"id": "takes_ssri", "var": "ssri", "type": "onset",
+   "label": "SSRI-class medication",
+   "agent_yes": "I am currently taking an SSRI-class medication.",
+   "agent_no": "I am not taking an SSRI-class medication."},
+  {"id": "hba1c_elevated", "var": "hba1c", "type": "onset",
+   "label": "HbA1c above range",
+   "agent_yes": "My HbA1c is above the usual range.",
+   "agent_no": "My HbA1c is within the usual range."},
+  {"id": "diagnosis_diabetes", "var": "diabetes", "type": "onset",
+   "label": "Diabetes diagnosis",
+   "agent_yes": "I have a diabetes diagnosis.",
+   "agent_no": "I have no diabetes diagnosis."},
+  {"id": "diagnosis_depression", "var": "depression", "type": "onset",
+   "label": "Depression diagnosis",
+   "agent_yes": "I have a depression diagnosis.",
+   "agent_no": "I have no depression diagnosis."},
+  {"id": "pregnant", "var": "pregnancy", "type": "window",
+   "label": "Pregnancy",
+   "agent_yes": "I am pregnant.",
+   "agent_no": "I am not pregnant."}
+ ]
+}

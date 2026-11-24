@@ -1,0 +1,21 @@
+{
+ "_spdx": "SPDX-License-Identifier: CC0-1.0",
+ "_copyright": "Copyright 2026 Paul Burg",
+ "_note": "What each recipient knows in advance, published before any attack is run. Attribute names refer to population.json variables.",
+ "order": ["doctor", "pharmacy", "insurer", "family"],
+ "sensitive_attributes": ["diabetes", "depression", "pregnancy"],
+ "recipients": {
+  "doctor": {"label": "Doctor",
+   "variants": {"base": {"known": ["age", "sex", "diabetes"]},
+                "more": {"known": ["age", "sex", "diabetes", "hba1c"]}}},
+  "pharmacy": {"label": "Pharmacy bot",
+   "variants": {"base": {"known": []},
+                "more": {"known": ["age", "sex"]}}},
+  "insurer": {"label": "Insurer",
+   "variants": {"base": {"known": ["age", "sex"]},
+                "more": {"known": ["age", "sex", "hba1c"]}}},
+  "family": {"label": "Family member",
+   "variants": {"base": {"known": ["age", "sex"]},
+                "more": {"known": ["age", "sex", "ssri"]}}}
+ }
+}

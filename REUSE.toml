@@ -14,7 +14,7 @@ SPDX-FileCopyrightText = "2026 Paul Burg"
 SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
-path = [".gitignore", "data/**", "results/**"]
+path = ["data/**", "results/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Paul Burg"
 SPDX-License-Identifier = "CC0-1.0"

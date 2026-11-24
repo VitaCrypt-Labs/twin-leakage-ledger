@@ -1,0 +1,83 @@
+<!--
+SPDX-FileCopyrightText: 2026 Paul Burg
+SPDX-License-Identifier: CC-BY-4.0
+-->
+
+# Twin Leakage Ledger
+
+Copyright 2026 Paul Burg. Text: CC BY 4.0. Code: Apache-2.0. Data: CC0-1.0.
+
+A research module on **synthetic data**. A personal health agent sends small messages to a doctor, a pharmacy bot, an insurer and a family member. One message says little; hundreds together can reveal a diagnosis the person never shared. The ledger keeps, per recipient, one number: by how much, at most, that recipient's ability to guess any fact about the person has grown over what the recipient already knew. The number is checked by attackers that read the same messages.
+
+This is research code. It is not a product, makes no guarantee about any shipping product, and says nothing clinical. No real person, no real health record and no personal data are used anywhere. In the current VitaCrypt MVP the server can decrypt user data; nothing in this repository changes that.
+
+## Run it
+
+```bash
+make reproduce
+```
+
+One command, no GPU, no network after the install, fixed seeds. It prints the verdict for both modes and writes `results/main_table.md`, `results/figure1.png`, `results/verdict.json`, `results/utility.md`, then compares the numbers with `results/expected.json` (tolerances, same verdicts). `make test` runs the tests, `make lint` runs `reuse lint`. Python 3.12 and [uv](https://docs.astral.sh/uv/); versions are locked in `uv.lock`, see `docs/DEPENDENCIES.md`.
+
+## What is simulated
+
+- **Persona.** A 24-month history from a closed, enumerable set of 46 875 histories (age group, sex, pregnancy start, and start months of diabetes, depression, antidiabetic medication, SSRI-class medication, raised HbA1c). The probability tables in `data/population.json` are invented assumptions, not epidemiology.
+- **Recipients.** Doctor, pharmacy bot, insurer, family member. What each knows in advance is in `data/recipients.json` (a `base` and a `more` variant) and is published before any attack runs.
+- **Main mode.** Declared release rules (`tll/policy.py`, plain code) decide which claims go to which recipient and on what schedule. A deterministic template renderer (`tll/renderer.py`) writes the message from those claims only; it never sees the rest of the record or any draft. The probability of every possible message is therefore known exactly, which is why the ledger can be exact. Whether a message is sent at all, and when, is part of what is counted. The absence of an expected message counts like a message.
+- **Control mode.** A simulated free agent writes drafts with extra phrases planted in them (`tll/agent_sim.py`). The draft goes out as written. The ledger counts only what a rule-based extractor finds (`tll/extractor.py`). Here the bound must break and the decisive test must catch it; if it does not, the experiment is declared uninformative and `make reproduce` fails.
+- **Limit.** The person can set a limit (2x, 5x, 10x). Before a message goes out the ledger picks the finest version (full, coarse, none) whose worst case over every possible content stays within the limit. The decision uses only the released history and the rules, never the current content.
+- **Attackers.** A0, exact Bayesian (knows the population and the rules). A1, a logistic regression trained on the raw text of 20 000 separate synthetic personas. Attackers based on open LLMs are not part of this version.
+
+## The bound
+
+For recipient R with prior knowledge k and all messages y so far:
+
+- `L = max_x P(y|x) / P_R(y)`, pointwise maximal leakage (Saeidian et al., arXiv 2205.04935). The ledger stores the vector `P(y|x)` over all histories and updates it by multiplication after every slot, so the number is exact.
+- `L_A = max_a P(a|y) / P_R(a)` for each attribute A the person named sensitive (diabetes, pregnancy, depression). `L_A <= L`.
+
+Two consequences hold for any attacker that outputs a distribution q over the values of A as a function of y. Proofs in two lines each:
+
+1. **Guessing.** `P(attacker names the true value | y) = [P(a_hat|y) / P_R(a_hat)] * P_R(a_hat) <= L_A * max_a P_R(a)`.
+2. **Stated probability.** `E[ q(a) / (P_R(a) * L_A) | y ] = sum_a [P(a|y) / P_R(a)] * q(a) / L_A <= sum_a q(a) = 1`, because every ratio `P(a|y) / P_R(a)` is at most `L_A`. This holds even for an overconfident attacker.
+
+The bound is a statement about the average over personas, not about a single prediction: one overconfident guess can exceed it with no leak at all. So the test (`PREREGISTRATION.md`) compares per-persona statistics `R_i` and `D_i` averaged over 2 000 personas with distribution-free bounds (empirical Bernstein for R, Hoeffding for D), corrected for many cells with Holm's method.
+
+### Four published assumptions
+
+The bound is valid in the main mode if all four hold:
+
+1. The table of what the recipient knows in advance is correct.
+2. Recipients do not pool what they receive (collusion is future work).
+3. A fact about the person is determined by the history from the closed set, or is tied to the person only through it.
+4. The code of the release rules is the code the ledger computes with (checked by `tests/test_policy.py`).
+
+The `more` variant and the mismatched run in `results/` show what happens when assumption 1 is stretched.
+
+## Layout
+
+| Path | What it is |
+|---|---|
+| `data/` | population tables, claim vocabulary, recipients (CC0-1.0) |
+| `tll/population.py`, `vocabulary.py` | the closed set of histories, the exact prior, the claims |
+| `tll/policy.py`, `renderer.py` | release rules and the template renderer |
+| `tll/ledger.py` | the ledger and the limit decision |
+| `tll/agent_sim.py`, `extractor.py` | control mode: free drafts with planted phrases, claim extractor |
+| `tll/attackers/` | A0 exact Bayesian, A1 trained classifier |
+| `tll/test_claim.py` | decisive test: intervals, Holm, minimal detectable excess |
+| `tll/utility.py` | cost in usefulness: price of the rules, price of a limit, price of the bound's coarseness |
+| `tll/reproduce.py`, `Makefile`, `results/expected.json` | one command and the check against expected numbers |
+| `PREREGISTRATION.md` | the refutation rule, committed and tagged `prereg-v1` before any result |
+
+## Limits of this version
+
+- A small closed set of histories, not realistic records. It buys exact numbers; scaling is future work.
+- The rules and the planted phrases are our own assumptions. Passing on this population says nothing about a real deployment.
+- The renderer is a template. A renderer based on an open language model that sees only the allowed claims is future work, as are LLM attackers, collusion between recipients and an on-device prototype.
+
+## Use of AI tools
+
+Parts of the code and text were written with Claude Code (Anthropic) under the author's direction; commits carry a co-author line. The author is responsible for the content.
+
+## Citation and license
+
+See `CITATION.cff`. Code Apache-2.0 (`LICENSE`), data CC0-1.0, texts CC BY 4.0; every file carries an SPDX identifier (`REUSE.toml` covers files that cannot hold comments).
