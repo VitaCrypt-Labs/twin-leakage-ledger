@@ -51,50 +51,47 @@ def capped_run(world: World, recipient: str, hist: int, U_row: np.ndarray, cap: 
     return levels, outcomes, led
 
 
-def run(world: World, n: int, seed: int, caps=CAPS) -> dict:
+def run_recipient(world: World, r: str, n: int, seed: int, caps=CAPS) -> dict:
+    """Usefulness numbers for one recipient on n personas (same personas and uniforms for every recipient)."""
     rng = np.random.default_rng(seed)
     h = world.pop.sample(n, rng)
     U = rng.random((n, world.S))
-    rng_agent = np.random.default_rng(seed + 1)
+    rng_agent = np.random.default_rng(seed + 1 + world.recipients.index(r))
     pop = world.pop
-    res = {}
-    for r in world.recipients:
-        known = world.variants[r]["base"]
-        acc = {"needed": 0, "main": 0, "free": 0, "sent": 0,
-               **{f"cap{c}": {"delivered": 0, "coarse": 0, "off": 0, "max_LA": 1.0} for c in caps}}
-        # uncapped numbers (vectorised over persons)
-        for s in world.slots_of[r]:
-            truth = _needs_truth(world, h, s)
-            p, code = world.sched(s, 0)
-            sent = U[:, s.idx] < p[h]
-            acc["needed"] += int(sum(v[sent].sum() for v in truth.values()))
-            acc["sent"] += int(sent.sum())
-            acc["main"] += int(_delivered(s.kind, 0, code[h], truth)[sent].sum())
-            for i in np.flatnonzero(sent):
-                needed_vals = {c: bool(truth[c][i]) for c in truth}
-                if not needed_vals:
-                    continue
-                text = agent_sim.needs_draft(world.vocab, s.kind, s.month, needed_vals, rng_agent)
-                found = world.extractor.extract(text)
-                acc["free"] += sum(1 for c, v in found.items() if v and needed_vals.get(c, False))
-        # capped runs, person by person (the ledger state depends on what was released)
-        for c in caps:
-            a = acc[f"cap{c}"]
-            for i in range(n):
-                levels, outcomes, led = capped_run(world, r, int(h[i]), U[i], c)
-                for s, level, outcome in zip(world.slots_of[r], levels, outcomes):
-                    sent = U[i, s.idx] < world.sched(s, 0)[0][h[i]]
-                    if sent and level == 1:
-                        a["coarse"] += 1
-                    if sent and level == 2:
-                        a["off"] += 1
-                    if outcome and policy.RULES[s.kind]["needs"]:
-                        truth = {cid: world.vocab.vector(pop, cid, s.month)[h[i:i + 1]]
-                                 for cid in policy.RULES[s.kind]["needs"]}
-                        a["delivered"] += int(_delivered(s.kind, level, np.array([outcome - 1]), truth)[0])
-                a["max_LA"] = max(a["max_LA"], max(led.bounds().LA[x] for x in world.sensitive))
-        res[r] = acc
-    return res
+    acc = {"needed": 0, "main": 0, "free": 0, "sent": 0,
+           **{f"cap{c}": {"delivered": 0, "coarse": 0, "off": 0, "max_LA": 1.0} for c in caps}}
+    # uncapped numbers (vectorised over persons)
+    for s in world.slots_of[r]:
+        truth = _needs_truth(world, h, s)
+        p, code = world.sched(s, 0)
+        sent = U[:, s.idx] < p[h]
+        acc["needed"] += int(sum(v[sent].sum() for v in truth.values()))
+        acc["sent"] += int(sent.sum())
+        acc["main"] += int(_delivered(s.kind, 0, code[h], truth)[sent].sum())
+        for i in np.flatnonzero(sent):
+            needed_vals = {c: bool(truth[c][i]) for c in truth}
+            if not needed_vals:
+                continue
+            text = agent_sim.needs_draft(world.vocab, s.kind, s.month, needed_vals, rng_agent)
+            found = world.extractor.extract(text)
+            acc["free"] += sum(1 for c, v in found.items() if v and needed_vals.get(c, False))
+    # capped runs, person by person (the ledger state depends on what was released)
+    for c in caps:
+        a = acc[f"cap{c}"]
+        for i in range(n):
+            levels, outcomes, led = capped_run(world, r, int(h[i]), U[i], c)
+            for s, level, outcome in zip(world.slots_of[r], levels, outcomes):
+                sent = U[i, s.idx] < world.sched(s, 0)[0][h[i]]
+                if sent and level == 1:
+                    a["coarse"] += 1
+                if sent and level == 2:
+                    a["off"] += 1
+                if outcome and policy.RULES[s.kind]["needs"]:
+                    truth = {cid: world.vocab.vector(pop, cid, s.month)[h[i:i + 1]]
+                             for cid in policy.RULES[s.kind]["needs"]}
+                    a["delivered"] += int(_delivered(s.kind, level, np.array([outcome - 1]), truth)[0])
+            a["max_LA"] = max(a["max_LA"], max(led.bounds().LA[x] for x in world.sensitive))
+    return acc
 
 
 def to_markdown(res: dict, world: World, gaps: dict, caps=CAPS) -> str:

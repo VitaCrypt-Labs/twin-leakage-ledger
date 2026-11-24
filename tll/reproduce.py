@@ -23,7 +23,44 @@ RESULTS = ROOT / "results"
 N_TEST, N_TRAIN, N_UTIL = 2000, 20000, 300
 SEED_TEST, SEED_TRAIN, SEED_UTIL = 20261207, 20261208, 20261209
 ATTACKERS = ("A0", "A1")
+LICENSE_TAG = ["Copyright 2026 Paul Burg", "SPDX-License-" + "Identifier: CC0-1.0"]
 TOL_MEAN = {"A0": 1e-6, "A1": 2e-3}
+
+
+_CTX: dict = {}
+
+
+def pmap(fn, items):
+    """Map over items with forked worker processes (TLL_WORKERS, default up to 4); serial when 1.
+    Results come back in item order, so the output does not depend on the number of workers."""
+    import multiprocessing as mp
+    import os
+    workers = int(os.environ.get("TLL_WORKERS", min(4, os.cpu_count() or 1)))
+    if workers <= 1 or len(items) <= 1:
+        return [fn(x) for x in items]
+    with mp.get_context("fork").Pool(min(workers, len(items))) as pool:
+        return pool.map(fn, items, chunksize=1)
+
+
+def _recipient_stage(r):
+    c = _CTX
+    world, h, main_out, ctrl_out = c["world"], c["h"], c["main"], c["ctrl"]
+    attrs = world.sensitive
+    led = run_ledger(world, r, "base", h, main_out, attrs, CHECKPOINTS)
+    same = extractor_matches_rules(world, r, main_out, ctrl_out)
+    ledc = led if same else run_ledger(world, r, "base", h, ctrl_out, attrs, CHECKPOINTS, mode="control")
+    a0m = a0_bayes.run(world, r, "base", h, main_out, "main", attrs)
+    a0c = a0_bayes.run(world, r, "base", h, ctrl_out, "control", attrs)
+    a1m = a1_classifier.fit_predict(world, r, "base", "main", c["htr"], c["mtr"], h, main_out, attrs)
+    a1c = a1_classifier.fit_predict(world, r, "base", "control", c["htr"], c["ctr"], h, ctrl_out, attrs)
+    led_more = run_ledger(world, r, "more", h, main_out, attrs, CHECKPOINTS)
+    a0_more = a0_bayes.run(world, r, "more", h, main_out, "main", attrs)
+    return dict(led=led, ledc=ledc, same=same, a0m=a0m, a0c=a0c, a1m=a1m, a1c=a1c, led_more=led_more, a0_more=a0_more)
+
+
+def _utility_stage(r):
+    c = _CTX
+    return utility.run_recipient(c["world"], r, N_UTIL, SEED_UTIL)
 
 
 def log(msg: str) -> None:
@@ -92,18 +129,18 @@ def main(argv=None) -> int:
     htr, _, mtr, ctr = world.draw_personas(N_TRAIN, SEED_TRAIN)
     log(f"test personas {N_TEST}, training personas {N_TRAIN}")
 
-    led, ledc, a0m, a0c, a1m, a1c = {}, {}, {}, {}, {}, {}
-    for r in world.recipients:
-        led[r] = run_ledger(world, r, "base", h, main_out, attrs, CHECKPOINTS)
-        # control mode: the ledger counts only what the extractor finds in each draft
-        same = extractor_matches_rules(world, r, main_out, ctrl_out)
-        ledc[r] = led[r] if same else run_ledger(world, r, "base", h, ctrl_out, attrs, CHECKPOINTS, mode="control")
-        a0m[r] = a0_bayes.run(world, r, "base", h, main_out, "main", attrs)
-        a0c[r] = a0_bayes.run(world, r, "base", h, ctrl_out, "control", attrs)
-        log(f"{r}: ledger and A0 done (control ledger equals main ledger: {same})")
-        a1m[r] = a1_classifier.fit_predict(world, r, "base", "main", htr, mtr, h, main_out, attrs)
-        a1c[r] = a1_classifier.fit_predict(world, r, "base", "control", htr, ctr, h, ctrl_out, attrs)
-        log(f"{r}: A1 done")
+    _CTX.update(world=world, h=h, main=main_out, ctrl=ctrl_out, htr=htr, mtr=mtr, ctr=ctr)
+    stages = dict(zip(world.recipients, pmap(_recipient_stage, world.recipients)))
+    led = {r: stages[r]["led"] for r in world.recipients}
+    ledc = {r: stages[r]["ledc"] for r in world.recipients}
+    a0m = {r: stages[r]["a0m"] for r in world.recipients}
+    a0c = {r: stages[r]["a0c"] for r in world.recipients}
+    a1m = {r: stages[r]["a1m"] for r in world.recipients}
+    a1c = {r: stages[r]["a1c"] for r in world.recipients}
+    led_more = {r: stages[r]["led_more"] for r in world.recipients}
+    a0_more = {r: stages[r]["a0_more"] for r in world.recipients}
+    log("ledger, A0, A1 done for all recipients; control ledger equals main ledger: "
+        + str({r: stages[r]["same"] for r in world.recipients}))
 
     def q_of(a0, a1):
         return {"A0": {r: a0_to_q(a0[r]) for r in world.recipients}, "A1": a1}
@@ -122,10 +159,6 @@ def main(argv=None) -> int:
         print("ERROR: A0 and the ledger disagree")
         return 1
     # robustness: recipient knows more
-    led_more, a0_more = {}, {}
-    for r in world.recipients:
-        led_more[r] = run_ledger(world, r, "more", h, main_out, attrs, CHECKPOINTS)
-        a0_more[r] = a0_bayes.run(world, r, "more", h, main_out, "main", attrs)
     cells_more, _ = build_cells(world, "main_more_variant", {"A0": {r: a0_to_q(a0_more[r]) for r in world.recipients}},
                                 led_more, h, world.recipients, variant="more", attackers=("A0",))
     cells_mis, _ = build_cells(world, "main_ledger_base_attacker_more", {"A0": {r: a0_to_q(a0_more[r]) for r in world.recipients}},
@@ -153,7 +186,7 @@ def main(argv=None) -> int:
                   "median_log_odometer": float(np.median(lo["log_odo"]))}
     log("gaps computed")
 
-    util = utility.run(world, N_UTIL, SEED_UTIL)
+    util = dict(zip(world.recipients, pmap(_utility_stage, world.recipients)))
     (RESULTS / "utility.md").write_text(utility.to_markdown(util, world, gaps), encoding="utf-8")
     log("utility done")
 
@@ -182,7 +215,7 @@ def cell_key(c):
 
 
 def write_expected_file(verdict: dict) -> None:
-    exp = {"_spdx": "SPDX-License-Identifier: CC0-1.0", "_copyright": "Copyright 2026 Paul Burg",
+    exp = {"_license": LICENSE_TAG,
            "verdict_main": verdict["main"]["verdict"], "verdict_control": verdict["control"]["verdict"],
            "tolerance_mean": TOL_MEAN, "cells": {}}
     for fam in ("main", "control"):
@@ -231,7 +264,7 @@ def write_outputs(world, cells_main, cells_ctrl, cells_more, cells_mis, v_main, 
                   arr_main, arr_ctrl, util):
     from . import report
     verdict = {
-        "_spdx": "SPDX-License-Identifier: CC0-1.0", "_copyright": "Copyright 2026 Paul Burg",
+        "_license": LICENSE_TAG,
         "design": {"n_test_personas": N_TEST, "n_training_personas": N_TRAIN, "n_utility_personas": N_UTIL,
                    "seeds": {"test": SEED_TEST, "train": SEED_TRAIN, "utility": SEED_UTIL},
                    "alpha": tc.ALPHA, "r_clip": tc.R_CLIP, "checkpoints": list(CHECKPOINTS),
