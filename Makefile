@@ -11,7 +11,7 @@ install:
 	uv sync --frozen
 
 reproduce: install
-	uv run --frozen --no-sync python -m tll.reproduce
+	uv run --frozen --no-sync python -m tll.reproduce $(ARGS)
 
 test: install
 	uv run --frozen --no-sync pytest -q
