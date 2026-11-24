@@ -19,6 +19,18 @@ make reproduce
 
 One command, no GPU, no network after the install, fixed seeds. It prints the verdict for both modes and writes `results/main_table.md`, `results/figure1.png`, `results/verdict.json`, `results/utility.md`, then compares the numbers with `results/expected.json` (tolerances, same verdicts). `make test` runs the tests, `make lint` runs `reuse lint`. Python 3.12 and [uv](https://docs.astral.sh/uv/); versions are locked in `uv.lock`, see `docs/DEPENDENCIES.md`.
 
+## Results at a glance
+
+Numbers from `make reproduce` (2 000 test personas per mode, fixed seeds, `results/`). All on invented synthetic data.
+
+- **Main mode: bound held.** 0 of 240 cells refuted (A0 and A1, three sensitive attributes, four recipients, five checkpoints, statistics R and D). A0's history-level ratio equals the ledger's L to 1e-15.
+- **Control mode: violation caught.** 14 of 240 cells refuted, all on statistic R: insurer/depression, family member/diabetes and doctor/depression, where the planted phrases carry information that the extractor does not see. Mean R of the best attacker reaches about 2.1 against a bound of 1.
+- **Gap, best attacker vs per-attribute bound.** At 24 months the best attacker's mean R is 0.93 to 0.95 per recipient, that is the bound is 1.06 to 1.07 times looser than the best attacker on average. The average hides a heavy tail: the 95th percentile of L_A is 14 to 17 for the attributes a recipient receives claims about.
+- **Gap, per-attribute vs general bound.** Median L / L_A is 1.12 to 1.43 depending on the recipient.
+- **Usefulness.** (1) Rules deliver 0.76 / 1.00 / 0.34 / 0.08 of the needed true facts for doctor / pharmacy / insurer / family against about 0.95 for the simulated free agent. (2) A limit of 5x coarsens or drops 70 to 100 percent of messages for the doctor, pharmacy and insurer, because the worst case over possible contents passes it; a limit of 10x costs the doctor 18 percent of needed facts and the pharmacy all of them. (3) See the gap lines above. Details: `results/utility.md`.
+- **Recipient knows more.** With the ledger configured for the published `more` variant: 0 of 120 cells refuted. With the ledger left on `base` while the attacker holds the `more` knowledge: 8 of 120 refuted, the stated edge of the method.
+- Sensitivity: minimal detectable excess is about 0.12 for R and 0.09 for D per cell at 2 000 personas; thin understatement is not detectable.
+
 ## What is simulated
 
 - **Persona.** A 24-month history from a closed, enumerable set of 46 875 histories (age group, sex, pregnancy start, and start months of diabetes, depression, antidiabetic medication, SSRI-class medication, raised HbA1c). The probability tables in `data/population.json` are invented assumptions, not epidemiology.
