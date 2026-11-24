@@ -1,0 +1,20 @@
+version = 1
+SPDX-PackageName = "twin-leakage-ledger"
+
+[[annotations]]
+path = ["LICENSE"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Paul Burg"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = ["uv.lock"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Paul Burg"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [".gitignore", "data/**", "results/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Paul Burg"
+SPDX-License-Identifier = "CC0-1.0"
