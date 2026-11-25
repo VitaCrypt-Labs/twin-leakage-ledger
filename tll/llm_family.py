@@ -27,7 +27,10 @@ def load_family(world: World, cache_dir: Path):
     for p in files:
         h, r = llm_cache.load_model(p)
         headers[h["model_key"]], recs[h["model_key"]] = h, r
-    sets = {h["set"] for h in headers.values()}
+    usable = {m for m, p in ((m, next(p for p in files if p.stem == m)) for m in headers)
+              if not any(x > llm_cache.FALLBACK_THRESHOLD for x in llm_cache.fallback_rates(p).values())
+              and headers[m].get("format_version") == llm_cache.FORMAT_VERSION}
+    sets = {headers[m]["set"] for m in (usable or headers)}
     if len(sets) != 1:
         raise ValueError(f"cache files hold different sets: {sorted(sets)}")
     spec = a_llm.resolve_set(world, sets.pop())
@@ -139,7 +142,11 @@ def refusal_message(res: dict) -> str:
 
 
 def run_if_cache(world: World, results_dir: Path, cache_dir: Path = llm_cache.DEFAULT_DIR) -> None:
-    res = evaluate(world, cache_dir)
+    try:
+        res = evaluate(world, cache_dir)
+    except (ValueError, KeyError) as e:
+        print(f"LLM cache unusable, family not built: {e}")
+        return
     if res is None:
         print("LLM cache: none, CPU-only run (as in v0.1.0)")
         return

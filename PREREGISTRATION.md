@@ -116,7 +116,7 @@ The first real run (tag `prereg-v2`, Qwen3-4B-Instruct-2507, reduced set, 1 080 
 ## v3.2 What changes
 
 - Answer budget: `max_new_tokens = 800` for all three models. The longest valid answer, measured with each model's own tokenizer on the largest value sets (pretty-printed, numbers of 16 digits), is 389 tokens (`docs/MODELS.md`); the budget is more than twice that. Generation also stops as soon as the JSON object is closed.
-- Prompt wordings `p1` to `p3` change by one sentence each: the object is requested on a single line without line breaks. Nothing else in the wordings changes; seeds, sampling (temperature 0.3, top-p 0.95) and the schema are as in v2.
+- Prompt wordings `p1` to `p3` change by one sentence each: the object is requested on a single line without line breaks. Nothing else in the wordings changes; seeds, sampling (temperature 0.3, top-p 0.95) and the schema are as in v2. The random state of a generation call is the prompt seed plus 7919 times the index of its chunk of 64 answers, so that chunks do not reuse one random stream; the record keeps the prompt seed.
 - Parser: every attribute whose block is complete and valid is kept, also when the answer is cut off or another block is broken. Only attributes that are missing or invalid fall back to the base rates. Each record stores per attribute whether it fell back, and whether the object was closed.
 - Cache format version 3. Caches written by v2 are refused.
 

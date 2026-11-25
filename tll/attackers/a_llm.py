@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: 2026 Paul Burg
 # SPDX-License-Identifier: Apache-2.0
-"""LLM attackers (preregistration v2). Three open-weight models of three families read the messages a
+"""LLM attackers (preregistration v2, corrected by v3). Three open-weight models of three families read the messages a
 recipient received up to a checkpoint and state a probability distribution over the values of each
 sensitive attribute. Answers are cached in cache/llm/ (see llm_cache.py).
 
-Prompt wordings p1, p2, p3 and their seeds are fixed here and are part of `prereg-v2`; do not edit them
-after that tag. Run: python -m tll.attackers.a_llm --set reduced --dry-run
+Prompt wordings p1, p2, p3 and their seeds are fixed here and are part of `prereg-v3` (v2 text plus one sentence);
+do not edit them after that tag. Run: python -m tll.attackers.a_llm --set reduced --dry-run
 """
 from __future__ import annotations
 
@@ -424,7 +424,7 @@ def run_model(world: World, spec: dict, model_key: str, model_spec: dict, backen
         part = items[c:c + chunk]
         for pid in {it.prompt_id for it in part}:
             sub = [it for it in part if it.prompt_id == pid]
-            raws = backend.generate(sub, PROMPT_SEEDS[pid])
+            raws = backend.generate(sub, PROMPT_SEEDS[pid] + 7919 * (c // chunk))  # chunk offset keeps streams apart
             for it, raw in zip(sub, raws):
                 parsed, fb = finalize(world, raw, it.prior)
                 llm_cache.append(f, {"model_key": model_key, "model_revision": model_spec["revision"],

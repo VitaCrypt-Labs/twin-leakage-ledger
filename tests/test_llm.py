@@ -241,3 +241,15 @@ def test_run_fails_loudly_above_threshold(world, tmp_path, capsys):
 
 def test_answer_budget_is_twice_the_longest_valid_answer():
     assert a_llm.MAX_NEW_TOKENS >= 2 * 389
+
+
+def test_degraded_cache_of_another_set_does_not_crash_a_good_one(world, tmp_path, capsys):
+    (tmp_path / "qwen.jsonl").write_text(FIXTURE.read_text())  # degraded, set "reduced"
+    _fill(world, tmp_path, models=("mistral",))  # good, set "tiny"
+    try:
+        res = llm_family.evaluate(world, tmp_path)
+        assert res["status"] == "ok" and "qwen" in res["degraded_models"] and "mistral" in res["fallbacks"]
+        llm_family.run_if_cache(world, tmp_path / "res", tmp_path)
+        assert "LLM family verdict" in capsys.readouterr().out
+    finally:
+        a_llm.SETS.pop("tiny", None)
