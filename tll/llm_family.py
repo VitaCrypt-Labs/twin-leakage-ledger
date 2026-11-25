@@ -18,7 +18,7 @@ from .sim import World
 
 
 def load_family(world: World, cache_dir: Path):
-    """Returns (spec, q, fallbacks, incomplete) or None when there is no cache.
+    """Returns (spec, q, fallbacks, incomplete, degraded) or None when there is no cache.
     q[model][recipient][checkpoint][attribute] -> (n, K) averaged over the prompt runs."""
     files = llm_cache.list_model_files(cache_dir)
     if not files:
@@ -34,8 +34,16 @@ def load_family(world: World, cache_dir: Path):
     hist, _ = a_llm.personas(world, spec["n"])
     expected = {(pid, i, r, ck) for pid in a_llm.PROMPT_SEEDS for i in range(spec["n"])
                 for r in spec["recipients"] for ck in spec["checkpoints"]}
-    q, fallbacks, incomplete = {}, {}, {}
+    q, fallbacks, incomplete, degraded = {}, {}, {}, {}
     for m, rs in recs.items():
+        rates = llm_cache.fallback_rates(next(p for p in files if p.stem == m))
+        high = {a: r for a, r in rates.items() if r > llm_cache.FALLBACK_THRESHOLD}
+        if high:
+            degraded[m] = high
+            continue
+        if headers[m].get("format_version") != llm_cache.FORMAT_VERSION:
+            degraded[m] = {"format_version": headers[m].get("format_version")}
+            continue
         missing = expected - set(rs)
         if missing:
             incomplete[m] = len(missing)
@@ -52,7 +60,7 @@ def load_family(world: World, cache_dir: Path):
                 qm[r][ck][a][i] += np.array(rec["parsed"][a]) / len(a_llm.PROMPT_SEEDS)
                 fb[a] += a in rec["fallback"]
         q[m], fallbacks[m] = qm, {"answers": len(expected), **fb}
-    return spec, q, fallbacks, incomplete
+    return spec, q, fallbacks, incomplete, degraded
 
 
 def evaluate(world: World, cache_dir: Path):
@@ -60,8 +68,12 @@ def evaluate(world: World, cache_dir: Path):
     loaded = load_family(world, cache_dir)
     if loaded is None:
         return None
-    spec, q, fallbacks, incomplete = loaded
-    out = {"status": "ok", "set": spec, "incomplete_models": incomplete, "fallbacks": fallbacks}
+    spec, q, fallbacks, incomplete, degraded = loaded
+    out = {"status": "ok", "set": spec, "incomplete_models": incomplete, "degraded_models": degraded,
+           "fallbacks": fallbacks}
+    if degraded and not q:
+        out["status"] = "refused"
+        return out
     if not q:
         out["status"] = "incomplete"
         return out
@@ -85,13 +97,16 @@ def write_outputs(world: World, res: dict, results_dir: Path) -> None:
                                                   encoding="utf-8")
     L = ["<!--", "SPDX-FileCopyrightText: 2026 Paul Burg", "SPDX-License-Identifier: CC0-1.0", "-->", "",
          "# LLM attackers (own Holm family, see PREREGISTRATION.md v2)", ""]
-    if res["status"] != "ok":
+    if res["status"] == "refused":
+        L.append(f"Cache refused, no verdict: {refusal_message(res)}")
+    elif res["status"] != "ok":
         L.append(f"Cache incomplete, no verdict. Missing answers per model: {res['incomplete_models']}.")
     else:
         spec = res["set"]
         L += [f"- Set: {spec['name']} ({spec['n']} personas, recipients {spec['recipients']}, checkpoints {spec['checkpoints']}).",
               f"- Verdict: **{res['verdict']}** ({res['refuted_cells']} of {res['family_size']} cells refuted).",
-              f"- Incomplete models left out: {res['incomplete_models'] or 'none'}.", "",
+              f"- Incomplete models left out: {res['incomplete_models'] or 'none'}.",
+              f"- Degraded models left out (unreadable-answer rate above the limit): {res['degraded_models'] or 'none'}.", "",
               "| Model | Answers | Unreadable diabetes | Unreadable depression | Unreadable pregnancy |", "|---|---|---|---|---|"]
         for m, f in res["fallbacks"].items():
             L.append(f"| {m} | {f['answers']} | {f['diabetes']} | {f['depression']} | {f['pregnancy']} |")
@@ -112,13 +127,26 @@ def write_outputs(world: World, res: dict, results_dir: Path) -> None:
     (results_dir / "llm_table.md").write_text("\n".join(L), encoding="utf-8")
 
 
+def refusal_message(res: dict) -> str:
+    parts = []
+    for m, d in res["degraded_models"].items():
+        if "format_version" in d:
+            parts.append(f"{m}: cache written by an older format ({d['format_version']}), not valid")
+        else:
+            parts.append(f"{m}: unreadable-answer rate " + ", ".join(f"{a} {r * 100:.1f}%" for a, r in d.items())
+                         + f" is above the limit of {llm_cache.FALLBACK_THRESHOLD * 100:.0f}%")
+    return "; ".join(parts) + ". The LLM family is not built from a degraded cache."
+
+
 def run_if_cache(world: World, results_dir: Path, cache_dir: Path = llm_cache.DEFAULT_DIR) -> None:
     res = evaluate(world, cache_dir)
     if res is None:
         print("LLM cache: none, CPU-only run (as in v0.1.0)")
         return
     write_outputs(world, res, results_dir)
-    if res["status"] == "ok":
+    if res["status"] == "refused":
+        print("LLM cache refused: " + refusal_message(res))
+    elif res["status"] == "ok":
         print(f"LLM family verdict: {res['verdict']} ({res['refuted_cells']} of {res['family_size']} cells refuted)")
     else:
         print(f"LLM cache incomplete, family not evaluated: {res['incomplete_models']}")

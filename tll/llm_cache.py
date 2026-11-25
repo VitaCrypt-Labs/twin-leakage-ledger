@@ -9,6 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DIR = ROOT / "cache" / "llm"
+FORMAT_VERSION = 3
+FALLBACK_THRESHOLD = 0.05  # preregistered in v3: above this per model and attribute the cache is not used
 LICENSE_TAG = ["Copyright 2026 Paul Burg", "SPDX-License-" + "Identifier: CC0-1.0"]
 
 
@@ -30,10 +32,10 @@ def open_for_append(path: Path, header: dict):
     old = read_header(path)
     if old is None:
         f = open(path, "w", encoding="utf-8")
-        f.write(json.dumps({"header": True, "_license": LICENSE_TAG, **header}, sort_keys=True) + "\n")
+        f.write(json.dumps({"header": True, **header}, sort_keys=True) + "\n")
         f.flush()
         return f
-    for k in ("model_key", "model_id", "revision", "set"):
+    for k in ("model_key", "model_id", "revision", "set", "format_version"):
         if old.get(k) != header.get(k):
             raise ValueError(f"{path.name}: header differs on '{k}' ({old.get(k)} vs {header.get(k)}); use another cache dir")
     return open(path, "a", encoding="utf-8")
@@ -63,3 +65,14 @@ def load_model(path: Path) -> tuple[dict, dict]:
 
 def list_model_files(cache_dir: Path) -> list[Path]:
     return sorted(Path(cache_dir).glob("*.jsonl")) if Path(cache_dir).is_dir() else []
+
+
+def fallback_rates(path: Path) -> dict[str, float]:
+    """Share of answers per attribute that fell back to the base rates (from the stored records)."""
+    _, recs = load_model(path)
+    n = max(len(recs), 1)
+    counts: dict[str, int] = {}
+    for r in recs.values():
+        for a in r.get("fallback", []):
+            counts[a] = counts.get(a, 0) + 1
+    return {a: counts.get(a, 0) / n for a in ("diabetes", "depression", "pregnancy")}

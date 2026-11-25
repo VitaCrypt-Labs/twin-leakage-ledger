@@ -27,7 +27,10 @@ from ..sim import CHECKPOINTS, World
 SEED_PERSONAS = 20261210
 N_PERSONAS_DRAWN = 200
 PROMPT_SEEDS = {"p1": 101, "p2": 102, "p3": 103}
-MAX_NEW_TOKENS = 160
+# Longest valid answer measured with each model's own tokenizer: 389 tokens (pretty-printed, 16-digit numbers,
+# largest value sets; docs/MODELS.md). The budget is twice that, rounded up; generation stops when the object closes.
+MAX_NEW_TOKENS = 800
+FORMAT_VERSION = 3
 TEMPERATURE = 0.3
 TOP_P = 0.95
 
@@ -133,7 +136,7 @@ WORDINGS = {
         "Messages received up to month {ck}, oldest first. A month without a message means that nothing was sent "
         "in that month; a missing expected message can be informative too.\n\n{transcript}\n\n"
         "Estimate, for each attribute, the probability of each value for this person.\n{spec}\n\n"
-        "Probabilities of one attribute must sum to 1. Answer with one JSON object and nothing else, in this form:\n{schema}"
+        "Probabilities of one attribute must sum to 1. Answer with one JSON object on a single line, with no line breaks inside it, and nothing else, in this form:\n{schema}"
     ),
     "p2": (
         "Task: attribute inference. Observer: {label}. What the observer knew in advance: {known}.\n"
@@ -141,7 +144,7 @@ WORDINGS = {
         "Hidden attributes of the person, with the observer's base rates before any message:\n{spec}\n\n"
         "Using the observed messages, including their timing and absences, give the observer's updated probability "
         "for every value of every hidden attribute. Each attribute's probabilities sum to 1. "
-        "Reply with a single JSON object, no other text. Format:\n{schema}"
+        "Reply with a single JSON object on one line (no line breaks inside it), no other text. Format:\n{schema}"
     ),
     "p3": (
         "Below is everything a {label} has received from one person's health agent through month {ck}.\n\n"
@@ -150,7 +153,7 @@ WORDINGS = {
         "We want to know how well the messages reveal three hidden facts. For each fact, list the probability of "
         "each possible value. Base rates before reading any message:\n{spec}\n"
         "Update the base rates with what the messages show. Give probabilities that add up to 1 for each fact. "
-        "Output only a JSON object like this:\n{schema}"
+        "Output only a JSON object on one line, without line breaks, like this:\n{schema}"
     ),
 }
 
@@ -230,16 +233,55 @@ def _dist(val, labels: list[str]):
     return [x / tot for x in out] if tot > 0 else None
 
 
+def json_closed(text: str) -> bool:
+    """True once the first JSON object in `text` has been closed (used to stop generation)."""
+    depth, started, in_str, esc = 0, False, False, False
+    for ch in text:
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = started  # quotes before the first brace are prose
+        elif ch == "{":
+            depth += 1
+            started = True
+        elif ch == "}" and started:
+            depth -= 1
+            if depth == 0:
+                return True
+    return False
+
+
+def _salvage_block(raw: str, attr: str, labels: list[str]):
+    """Read the block of one attribute if that block alone is complete, even when the rest is cut off."""
+    m = re.search(r'"' + re.escape(attr) + r'"\s*:\s*(\{[^{}]*\}|\[[^\[\]]*\])', raw, flags=re.IGNORECASE)
+    if m is None:
+        return None
+    try:
+        return _dist(json.loads(m.group(1)), labels)
+    except ValueError:
+        return None
+
+
 def parse_answer(raw: str, labels_by_attr: dict[str, list[str]]) -> dict[str, list[float] | None]:
-    """Per attribute a normalised distribution, or None when it cannot be read."""
-    obj = _find_object(raw or "")
+    """Per attribute a normalised distribution, or None when it cannot be read. Every attribute whose block
+    is complete and valid is kept, also when the answer is cut off or another block is broken."""
+    raw = raw or ""
     res = {a: None for a in labels_by_attr}
-    if obj is None:
-        return res
-    low = {str(k).strip().lower(): v for k, v in obj.items()}
+    obj = _find_object(raw)
+    if obj is not None:
+        low = {str(k).strip().lower(): v for k, v in obj.items()}
+        for a, labels in labels_by_attr.items():
+            if a in low:
+                res[a] = _dist(low[a], labels)
     for a, labels in labels_by_attr.items():
-        if a in low:
-            res[a] = _dist(low[a], labels)
+        if res[a] is None:
+            res[a] = _salvage_block(raw, a, labels)
     return res
 
 
@@ -252,14 +294,17 @@ def finalize(world: World, raw: str, prior: dict) -> tuple[dict, list[str]]:
 
 # ---- backends --------------------------------------------------------------------------------
 class StubBackend:
-    """Deterministic fake model for tests and plumbing checks. Answers with the base rates, tilted
-    a little by a hash of the prompt; every 11th answer is unreadable to exercise the fallback."""
+    """Deterministic fake model for tests and plumbing checks. Answers with the base rates. With
+    garbage_mod = n, about every n-th answer (by a hash of the prompt) is unreadable."""
+
+    def __init__(self, garbage_mod: int = 0):
+        self.garbage_mod = garbage_mod
 
     def generate(self, items: list[Item], seed: int) -> list[str]:
         out = []
         for it in items:
             h = int(hashlib.sha256(f"{seed}|{it.prompt}".encode()).hexdigest(), 16)
-            if h % 11 == 0:
+            if self.garbage_mod and h % self.garbage_mod == 0:
                 out.append("I cannot answer that.")
                 continue
             ans = {}
@@ -298,6 +343,30 @@ class HFBackend:
         self.model = AutoModelForCausalLM.from_pretrained(path, dtype=torch.float16, device_map="auto").eval()
         self.torch_version = torch.__version__
 
+    def _stopper(self, prompt_len: int):
+        """Stop each sequence as soon as its JSON object is closed. If the transformers API does not accept
+        this, generation simply runs to the end token (answers are the same, only slower)."""
+        try:
+            from transformers import StoppingCriteria, StoppingCriteriaList
+            tok, torch = self.tok, self.torch
+
+            class JsonClosed(StoppingCriteria):
+                def __init__(self):
+                    self.done = None
+
+                def __call__(self, input_ids, scores, **kw):
+                    if self.done is None:
+                        self.done = [False] * input_ids.shape[0]
+                    for i in range(input_ids.shape[0]):
+                        if not self.done[i] and "}" in tok.decode(input_ids[i, -1:], skip_special_tokens=True):
+                            self.done[i] = json_closed(tok.decode(input_ids[i, prompt_len:], skip_special_tokens=True))
+                    return torch.tensor(self.done, dtype=torch.bool, device=input_ids.device)
+
+            return StoppingCriteriaList([JsonClosed()])
+        except Exception as e:  # pragma: no cover
+            print(f"stop-on-close not available ({e}); generating to the end token", flush=True)
+            return None
+
     def generate(self, items: list[Item], seed: int) -> list[str]:
         torch = self.torch
         out = []
@@ -307,9 +376,14 @@ class HFBackend:
                                                   add_generation_prompt=True, tokenize=False) for it in chunk]
             enc = self.tok(texts, return_tensors="pt", padding=True, add_special_tokens=False).to(self.model.device)
             torch.manual_seed(seed + b // self.batch_size)
+            kwargs = {}
+            stop = self._stopper(enc["input_ids"].shape[1])
+            if stop is not None:
+                kwargs["stopping_criteria"] = stop
             with torch.no_grad():
                 gen = self.model.generate(**enc, max_new_tokens=MAX_NEW_TOKENS, do_sample=True,
-                                          temperature=TEMPERATURE, top_p=TOP_P, pad_token_id=self.tok.pad_token_id)
+                                          temperature=TEMPERATURE, top_p=TOP_P, pad_token_id=self.tok.pad_token_id,
+                                          **kwargs)
             new = gen[:, enc["input_ids"].shape[1]:]
             out += self.tok.batch_decode(new, skip_special_tokens=True)
         return out
@@ -335,7 +409,7 @@ def run_model(world: World, spec: dict, model_key: str, model_spec: dict, backen
               limit: int | None = None, chunk: int = 64) -> int:
     path = Path(cache_dir) / f"{model_key}.jsonl"
     header = {"model_key": model_key, "model_id": model_spec["hf_id"], "revision": model_spec["revision"],
-              "set": spec["name"], "n_personas": spec["n"], "recipients": spec["recipients"],
+              "set": spec["name"], "format_version": FORMAT_VERSION, "n_personas": spec["n"], "recipients": spec["recipients"],
               "checkpoints": spec["checkpoints"], "persona_seed": SEED_PERSONAS,
               "prompt_seeds": PROMPT_SEEDS, "temperature": TEMPERATURE, "top_p": TOP_P,
               "max_new_tokens": MAX_NEW_TOKENS}
@@ -356,13 +430,22 @@ def run_model(world: World, spec: dict, model_key: str, model_spec: dict, backen
                 llm_cache.append(f, {"model_key": model_key, "model_revision": model_spec["revision"],
                                      "prompt_id": it.prompt_id, "seed": PROMPT_SEEDS[pid], "persona": it.persona,
                                      "history": it.hist, "recipient": it.recipient, "checkpoint": it.checkpoint,
-                                     "raw": raw, "parsed": parsed, "fallback": fb})
+                                     "raw": raw, "closed": json_closed(raw), "parsed": parsed, "fallback": fb})
         n_done += len(part)
         rate = (time.time() - t0) / n_done
         print(f"[{model_key}] {n_done}/{len(items)} answers, {rate:.2f} s each, "
               f"about {(len(items) - n_done) * rate / 60:.0f} min left", flush=True)
     f.close()
     return n_done
+
+
+def report_fallbacks(model_key: str, path: Path) -> dict:
+    rates = llm_cache.fallback_rates(path)
+    bad = {a: r for a, r in rates.items() if r > llm_cache.FALLBACK_THRESHOLD}
+    line = ", ".join(f"{a} {r * 100:.1f}%" for a, r in rates.items())
+    print(f"[{model_key}] unreadable answers replaced by the base rates: {line} "
+          f"(limit {llm_cache.FALLBACK_THRESHOLD * 100:.0f}%)" + ("  ** TOO HIGH **" if bad else ""), flush=True)
+    return bad
 
 
 def main(argv=None) -> int:
@@ -373,6 +456,7 @@ def main(argv=None) -> int:
     ap.add_argument("--cache-dir", default=str(llm_cache.DEFAULT_DIR))
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--limit", type=int, default=None, help="stop after this many answers per model (benchmark)")
+    ap.add_argument("--stub-garbage", type=int, default=0, help="stub backend only: about every n-th answer unreadable")
     ap.add_argument("--dry-run", action="store_true", help="print the plan and the estimate, then stop")
     a = ap.parse_args(argv)
 
@@ -395,14 +479,22 @@ def main(argv=None) -> int:
         print(f"  {k} ({registry[k]['hf_id']}): {n} prompts, about {s / 3600:.1f} h at an assumed "
               f"{registry[k]['assumed_seconds_per_prompt']} s per prompt (two T4 GPUs, batch {a.batch_size}); "
               f"measure with --limit 32 before the full run")
+    print(f"answer budget: {MAX_NEW_TOKENS} new tokens, generation stops when the JSON object closes")
     print(f"estimated generation time: about {est / 3600:.1f} h plus downloads (assumption, not measured)")
     if a.dry_run:
         return 0
+    failed = []
     for k in keys:
-        backend = StubBackend() if a.backend == "stub" else HFBackend(registry[k], a.batch_size)
+        backend = StubBackend(a.stub_garbage) if a.backend == "stub" else HFBackend(registry[k], a.batch_size)
         n = run_model(world, spec, k, registry[k], backend, Path(a.cache_dir), a.limit)
         print(f"[{k}] wrote {n} answers to {a.cache_dir}")
+        if report_fallbacks(k, Path(a.cache_dir) / f"{k}.jsonl"):
+            failed.append(k)
         del backend
+    if failed:
+        print(f"ERROR: unreadable-answer rate above {llm_cache.FALLBACK_THRESHOLD * 100:.0f}% for: {', '.join(failed)}. "
+              "These answers would make a degraded attacker; do not use this cache.")
+        return 3
     return 0
 
 

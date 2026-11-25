@@ -150,3 +150,94 @@ def test_header_mismatch_is_refused(world, tmp_path):
             llm_cache.open_for_append(tmp_path / "qwen.jsonl", {"model_key": "qwen", "model_id": "x", "revision": "y", "set": "tiny"})
     finally:
         a_llm.SETS.pop("tiny", None)
+
+
+# ---- v3: truncated answers, salvage, fallback gate (real Qwen answers from the invalid v2 run) ----
+from pathlib import Path  # noqa: E402
+
+FIXTURE = Path(__file__).parent / "fixtures" / "qwen_v2_truncated.jsonl"
+
+
+def _fixture_records():
+    header, recs = llm_cache.load_model(FIXTURE)
+    return header, list(recs.values())
+
+
+def test_json_closed():
+    assert not a_llm.json_closed('{"a": {"x": 1}')
+    assert a_llm.json_closed('Sure: {"a": {"x": 1}} thanks')
+    assert not a_llm.json_closed('{"a": "}"')
+    assert a_llm.json_closed('{"a": "}"}')
+    assert not a_llm.json_closed("no object here")
+
+
+def test_real_truncated_answers_are_salvaged(world):
+    _, recs = _fixture_records()
+    cut = [r for r in recs if len(r["fallback"]) == 3]
+    assert len(cut) == 20
+    for r in cut:
+        assert not a_llm.json_closed(r["raw"])  # cut inside the object
+        out = a_llm.parse_answer(r["raw"], LABELS)
+        assert out["diabetes"] is not None and out["depression"] is not None  # complete blocks are kept
+        assert abs(sum(out["diabetes"]) - 1) < 1e-12 and abs(sum(out["depression"]) - 1) < 1e-12
+        assert out["pregnancy"] is None  # cut inside the last block
+        prior = a_llm.prior_marginals(world, "doctor", 5)
+        parsed, fb = a_llm.finalize(world, r["raw"], prior)
+        assert fb == ["pregnancy"] and parsed["pregnancy"] == prior["pregnancy"]
+
+
+def test_complete_real_answers_parse_fully_and_partial_ones_keep_good_blocks():
+    _, recs = _fixture_records()
+    full = [r for r in recs if r["fallback"] == [] and a_llm.json_closed(r["raw"])]
+    assert full and all(None not in a_llm.parse_answer(r["raw"], LABELS).values() for r in full)
+    one = [r for r in recs if len(r["fallback"]) == 1]
+    for r in one:  # a closed but broken block costs only that attribute
+        out = a_llm.parse_answer(r["raw"], LABELS)
+        assert sum(v is None for v in out.values()) <= 1
+
+
+def test_partial_salvage_with_one_broken_block():
+    raw = ('{"diabetes": {"none": 0.9, "2": 0.1, "5": 0, "11": 0, "18": 0}, "depression": {"none": 0.5, "2": x}, '
+           '"pregnancy": {"none": 1.0, "3": 0.0, "9": 0.0, "15": 0.0}}')
+    out = a_llm.parse_answer(raw, LABELS)
+    assert out["diabetes"][0] == 0.9 and out["depression"] is None and out["pregnancy"][0] == 1.0
+
+
+def test_fixture_cache_is_refused_with_fallback_message(world, tmp_path):
+    (tmp_path / "qwen.jsonl").write_text(FIXTURE.read_text())
+    res = llm_family.evaluate(world, tmp_path)
+    assert res["status"] == "refused"
+    msg = llm_family.refusal_message(res)
+    assert "unreadable-answer rate" in msg and "above the limit of 5%" in msg
+    assert llm_cache.fallback_rates(tmp_path / "qwen.jsonl")["diabetes"] > 0.5
+
+
+def test_old_format_cache_is_refused_even_with_low_fallback(world, tmp_path):
+    _fill(world, tmp_path, models=("qwen",))
+    try:
+        p = tmp_path / "qwen.jsonl"
+        lines = p.read_text().splitlines()
+        h = json.loads(lines[0])
+        h.pop("format_version")
+        p.write_text("\n".join([json.dumps(h)] + lines[1:]) + "\n")
+        res = llm_family.evaluate(world, tmp_path)
+        assert res["status"] == "refused" and "older format" in llm_family.refusal_message(res)
+    finally:
+        a_llm.SETS.pop("tiny", None)
+
+
+def test_run_fails_loudly_above_threshold(world, tmp_path, capsys):
+    a_llm.SETS["tiny"] = {"n": 6, "recipients": ("doctor",), "checkpoints": (3, 6)}
+    try:
+        rc = a_llm.main(["--set", "tiny", "--models", "qwen", "--backend", "stub", "--stub-garbage", "3",
+                         "--cache-dir", str(tmp_path)])
+        out = capsys.readouterr().out
+        assert rc == 3 and "TOO HIGH" in out and "unreadable answers" in out
+        rc = a_llm.main(["--set", "tiny", "--models", "phi", "--backend", "stub", "--cache-dir", str(tmp_path)])
+        assert rc == 0 and "0.0%" in capsys.readouterr().out
+    finally:
+        a_llm.SETS.pop("tiny", None)
+
+
+def test_answer_budget_is_twice_the_longest_valid_answer():
+    assert a_llm.MAX_NEW_TOKENS >= 2 * 389

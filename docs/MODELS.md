@@ -44,3 +44,15 @@ The code downloads the pinned revision and compares these hashes after the downl
 ## Run assumptions
 
 Weights are loaded in float16 on one or two GPUs (a free Kaggle T4 x2 session). The assumed time per prompt in `data/models.json` is a guess for planning, not a measurement; `make reproduce-llm LLM_ARGS="--set reduced --limit 32"` measures it.
+
+## Answer length (measured with each model's own tokenizer)
+
+Tokens of a complete answer for the largest value sets (diabetes and depression 5 values each, pregnancy 4), by number format. The first real run used a budget of 160 tokens, which is below the pretty-printed answer even with 3-digit numbers for Qwen and Mistral.
+
+| Model | Pretty, 3 digits | Pretty, 10 digits | Pretty, 16 digits | One line, 10 digits |
+|---|---|---|---|---|
+| qwen | 186 | 284 | 368 | 256 |
+| mistral | 207 | 305 | 389 | 259 |
+| phi | 152 | 194 | 222 | 166 |
+
+The budget is `max_new_tokens = 800` (more than twice the longest value, 389); generation stops when the JSON object closes.

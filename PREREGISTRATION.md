@@ -102,3 +102,27 @@ Three open-weight models of three families, weights under Apache-2.0 or MIT, pin
 ## v2.4 Deviations
 
 A change to this section after the tag is published as `prereg-v3` with a reason.
+
+---
+
+# Preregistration v3: correction of the LLM run (tag `prereg-v3`)
+
+Committed and tagged `prereg-v3` before any new LLM answer exists. It replaces the technical settings of v2.1; everything else in v1 and v2 (cells, sizes, seeds, personas, statistics, Holm rule, clip, verdicts) is unchanged.
+
+## v3.1 What went wrong in the first run (deviation, stated plainly)
+
+The first real run (tag `prereg-v2`, Qwen3-4B-Instruct-2507, reduced set, 1 080 answers) was invalid. The answer budget of 160 new tokens was too small: the model writes the JSON object pretty-printed and a complete answer needs about 190 tokens or more, so almost every answer was cut inside the last attribute. The v2 parser then discarded the whole answer and replaced all three attributes by the base rates: 1 024 of 1 080 answers had all three attributes replaced, 15 had one, 41 were read fully. The attacker was therefore almost exactly the prior. No verdict was computed from that cache and none will be; it is not used and not published.
+
+## v3.2 What changes
+
+- Answer budget: `max_new_tokens = 800` for all three models. The longest valid answer, measured with each model's own tokenizer on the largest value sets (pretty-printed, numbers of 16 digits), is 389 tokens (`docs/MODELS.md`); the budget is more than twice that. Generation also stops as soon as the JSON object is closed.
+- Prompt wordings `p1` to `p3` change by one sentence each: the object is requested on a single line without line breaks. Nothing else in the wordings changes; seeds, sampling (temperature 0.3, top-p 0.95) and the schema are as in v2.
+- Parser: every attribute whose block is complete and valid is kept, also when the answer is cut off or another block is broken. Only attributes that are missing or invalid fall back to the base rates. Each record stores per attribute whether it fell back, and whether the object was closed.
+- Cache format version 3. Caches written by v2 are refused.
+
+## v3.3 Fallback threshold
+
+- A model's answers are usable only if, for each attribute, at most 5% of its answers fell back to the base rates.
+- `make reproduce-llm` prints the rate per model and attribute at the end and exits with an error above 5%; the speed-check run of 32 answers prints the same number.
+- `make reproduce` refuses to build the LLM family from a model whose rate is above 5% for any attribute, or whose cache is not format version 3, and says so. A degraded attacker never produces a verdict.
+- If a model cannot be brought under the threshold the model is reported as failed and left out; the other models are tested as planned.
