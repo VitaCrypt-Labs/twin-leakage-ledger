@@ -71,3 +71,89 @@ Claims per cell: `mean(R_i) <= 1` (statistic R) and `mean(D_i) <= 0` (statistic 
 ## 9. Deviations
 
 Any change to this rule after the tag is published as a new tag (`prereg-v2`) with a stated reason, and v1 results stay in the history.
+
+---
+
+# Preregistration v2: LLM attackers (tag `prereg-v2`)
+
+This section is committed and tagged `prereg-v2` before any LLM answer exists. Section 1 to 9 above (v1) stay as they are; v1 results are not touched. Nothing here changes the rule of v1: same per-persona statistics `R_i` and `D_i`, same clip `B = 10`, same tests, same Holm correction, same `alpha = 0.05`.
+
+## v2.1 Attackers
+
+Three open-weight models of three families, weights under Apache-2.0 or MIT, pinned by revision and file hash in `data/models.json` and recorded with licence and release date in `docs/MODELS.md`: Qwen3-4B-Instruct-2507 (Apache-2.0), Mistral-7B-Instruct-v0.3 (Apache-2.0), Phi-4-mini-instruct (MIT). Each model gets, per person, recipient and checkpoint: the recipient's published prior knowledge (`base` variant), the recipient's base rates for the three sensitive attributes, and the messages that recipient received up to the checkpoint. It gets nothing else about the person. It returns a probability distribution over the values of each sensitive attribute.
+
+- Three runs per model: the three prompt wordings `p1`, `p2`, `p3` (`WORDINGS` in `tll/attackers/a_llm.py`), seeds 101, 102, 103. Sampling: temperature 0.3, top-p 0.95, at most 160 new tokens.
+- Parsing: first JSON object in the answer; values are normalised; names such as `none`, `month 5` or `5` are accepted. An attribute that cannot be read falls back to the base rates and is counted; counts per model and attribute are reported.
+- The per-person answer of a model is the mean of its three runs. That mean is the `q` of the cell.
+
+## v2.2 Personas, cells, sizes
+
+- Personas: the first `n` of 200 personas drawn from the population with seed `20261210`, main mode only. The control mode is not run with LLM attackers.
+- Full set (primary): `n = 200`, four recipients, checkpoints 1, 3, 6, 12, 24; 36 000 prompts; cells = 3 models x 3 attributes x 4 recipients x 5 checkpoints x 2 statistics = 360.
+- Reduced set (only if the full set is not finished; reported as reduced): `n = 60`, recipients doctor and family member, checkpoints 3, 12, 24; 3 240 prompts; 108 cells.
+- One Holm family per set that was run, over all its cells. If both exist they are separate families and the full set is the primary result.
+
+## v2.3 Verdict
+
+- LLM family `bound held` if no cell is refuted, otherwise `bound refuted` with the refuting cells listed, reported as is.
+- A model whose cache is incomplete is left out and named; with no complete model there is no verdict.
+- Minimal detectable excess per cell is printed. With 200 personas only coarse understatement is detectable.
+
+## v2.4 Deviations
+
+A change to this section after the tag is published as `prereg-v3` with a reason.
+
+---
+
+# Preregistration v3: correction of the LLM run (tag `prereg-v3`)
+
+Committed and tagged `prereg-v3` before any new LLM answer exists. It replaces the technical settings of v2.1; everything else in v1 and v2 (cells, sizes, seeds, personas, statistics, Holm rule, clip, verdicts) is unchanged.
+
+## v3.1 What went wrong in the first run (deviation, stated plainly)
+
+The first real run (tag `prereg-v2`, Qwen3-4B-Instruct-2507, reduced set, 1 080 answers) was invalid. The answer budget of 160 new tokens was too small: the model writes the JSON object pretty-printed and a complete answer needs about 190 tokens or more, so almost every answer was cut inside the last attribute. The v2 parser then discarded the whole answer and replaced all three attributes by the base rates: 1 024 of 1 080 answers had all three attributes replaced, 15 had one, 41 were read fully. The attacker was therefore almost exactly the prior. No verdict was computed from that cache and none will be; it is not used and not published.
+
+## v3.2 What changes
+
+- Answer budget: `max_new_tokens = 800` for all three models. The longest valid answer, measured with each model's own tokenizer on the largest value sets (pretty-printed, numbers of 16 digits), is 389 tokens (`docs/MODELS.md`); the budget is more than twice that. Generation also stops as soon as the JSON object is closed.
+- Prompt wordings `p1` to `p3` change by one sentence each: the object is requested on a single line without line breaks. Nothing else in the wordings changes; seeds, sampling (temperature 0.3, top-p 0.95) and the schema are as in v2. The random state of a generation call is the prompt seed plus 7919 times the index of its chunk of 64 answers, so that chunks do not reuse one random stream; the record keeps the prompt seed.
+- Parser: every attribute whose block is complete and valid is kept, also when the answer is cut off or another block is broken. Only attributes that are missing or invalid fall back to the base rates. Each record stores per attribute whether it fell back, and whether the object was closed.
+- Cache format version 3. Caches written by v2 are refused.
+
+## v3.3 Fallback threshold
+
+- A model's answers are usable only if, for each attribute, at most 5% of its answers fell back to the base rates.
+- `make reproduce-llm` prints the rate per model and attribute at the end and exits with an error above 5%; the speed-check run of 32 answers prints the same number.
+- `make reproduce` refuses to build the LLM family from a model whose rate is above 5% for any attribute, or whose cache is not format version 3, and says so. A degraded attacker never produces a verdict.
+- If a model cannot be brought under the threshold the model is reported as failed and left out; the other models are tested as planned.
+
+---
+
+# Preregistration v4: crash, abstention and the fallback limit (tag `prereg-v4`)
+
+Committed and tagged `prereg-v4` before any new LLM answer exists. It replaces the technical settings of v3 where stated; everything else in v1 to v3 (personas, cells, sizes, seeds, statistics, Holm rule, clip, verdicts) is unchanged.
+
+## v4.1 What the v3 run showed (deviation made after seeing raw answers)
+
+The run at tag `prereg-v3` (background version, two T4 GPUs, reduced set) gave: Qwen3-4B-Instruct-2507, 1 080 answers, unreadable rate 0.0% diabetes, 1.1% depression, 0.0% pregnancy, so the v3 fix was confirmed on a real model. Mistral-7B-Instruct-v0.3 stopped with a CUDA out-of-memory error after 752 of 1 080 answers; Phi-4-mini-instruct did not run. In the 752 Mistral answers 103 had a complete JSON object but an attribute block that was not a usable distribution (all zeros, a single key, percent signs, an expression such as `1.7/12`, or prose before the object); the v3 limit of 5% would have refused Mistral for that. These are deviations made after seeing raw answers and before computing any statistic or verdict from them. No verdict was computed from the v2 or v3 answers, and none will be. All answers are regenerated under `prereg-v4` for all three models; v2 and v3 caches are not used for any result.
+
+## v4.2 Two different things, now separated
+
+- **Technical loss:** the answer was cut off or the JSON object never closed, and the attribute block is missing or broken. The 5% limit per model and attribute of v3.3 stays, unchanged: above it `make reproduce-llm` exits with an error and `make reproduce` refuses the model.
+- **Abstention:** the object is complete but an attribute block is not a usable distribution. The attacker abstains on that attribute and the recipient's base rates are used, exactly as v2.1 said for unreadable answers. This is valid for the test (the bound holds for any stated distribution) but it weakens the attacker, so it is made visible: the abstention rate per model and attribute is printed at the end of `make reproduce-llm`, stored in every record (`abstain`, `loss`) and shown next to each model in `results/llm_table.md`. A model with abstention above 20% on any attribute is marked **weak attacker** in the table and in the verdict text. No model is dropped or replaced because of abstention.
+
+## v4.3 Parser (technical readings only)
+
+Allowed: a percent sign after a number (`26.3%` is 26.3); non-negative values that sum to a positive number are normalised by their sum; text before the first `{` is skipped; every complete valid block is kept when others are broken or cut off. Not allowed, and therefore abstentions: evaluating expressions such as `1.7/12`; guessing missing keys (a block must name every value of the attribute; the v3 parser read missing keys as zero and that is withdrawn); any repair that needs judgement. Model output is never passed to `eval`. Consequence, measured by re-reading the 752 Mistral answers of the v3 run with this parser: abstention 38.4% diabetes, 9.3% depression, 28.2% pregnancy (technical loss 0%), so Mistral is expected to be marked weak; Qwen 1.1% depression only.
+
+## v4.4 Memory plan (so that the crash cannot recur)
+
+- Weights are spread evenly over both GPUs (`device_map="balanced"`).
+- Batches are limited by a token budget per model (`batch_token_budget` in `data/models.json`: batch size x (longest prompt + 800 answer tokens)) and by a cap of 8; long prompts get small batches.
+- On an out-of-memory error the batch is retried in halves; a single prompt that still fails stops that model only.
+- Memory is freed after each model. A failing model is reported and the next model still runs; the run exits with an error at the end.
+- The 32-answer speed check uses the longest prompts of each model, so memory problems show in the first minutes; it prints the same technical-loss and abstention rates.
+
+## v4.5 Cache format
+
+Format version 4. `make reproduce` builds the LLM family only from models whose technical loss is within the limit; it reads format 3 only for local checks and then states the older code version in the table and the console; a cache of any other format is refused.

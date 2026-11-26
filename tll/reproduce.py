@@ -77,7 +77,8 @@ def roundf(o, nd=10):
     return o
 
 
-def build_cells(world, mode, q_by_att, bounds, h, recipients, variant="base", attackers=ATTACKERS):
+def build_cells(world, mode, q_by_att, bounds, h, recipients, variant="base", attackers=ATTACKERS,
+                checkpoints=CHECKPOINTS):
     """q_by_att[attacker][recipient][ck][attr] -> (n, K). bounds[recipient][ck]: ledger output."""
     cells, arrays = [], {}
     for att in attackers:
@@ -85,7 +86,7 @@ def build_cells(world, mode, q_by_att, bounds, h, recipients, variant="base", at
             known = world.variants[r][variant]
             for a in world.sensitive:
                 true_val = world.pop.values[a][h].astype(np.int64)
-                for ck in CHECKPOINTS:
+                for ck in checkpoints:
                     b = bounds[r][ck]
                     R, D, ceil, correct = tc.person_stats(q_by_att[att][r][ck][a], true_val, b["LA"][a],
                                                           b["PR_true"][a], b["pmax"][a])
@@ -201,11 +202,15 @@ def main(argv=None) -> int:
         print("ERROR: control mode did not produce a violation; experiment is uninformative")
         status = 1
     verdict = json.loads((RESULTS / "verdict.json").read_text())
+    from . import llm_family
+    llm_res = llm_family.run_if_cache(world, RESULTS)
+    if llm_res is not None and llm_res.get("status") != "ok":
+        llm_res = None
     if write_expected:
-        write_expected_file(verdict)
+        write_expected_file(verdict, llm_res)
         log("expected.json written")
     else:
-        status = max(status, compare_expected(verdict))
+        status = max(status, compare_expected(verdict, llm_res))
     log(f"total time {time.time() - t0:.0f} s")
     return status
 
@@ -214,17 +219,21 @@ def cell_key(c):
     return f"{c['mode']}|{c['attacker']}|{c['recipient']}|{c['attribute']}|{c['checkpoint']}|{c['statistic']}"
 
 
-def write_expected_file(verdict: dict) -> None:
+def write_expected_file(verdict: dict, llm_res: dict | None = None) -> None:
     exp = {"_license": LICENSE_TAG,
            "verdict_main": verdict["main"]["verdict"], "verdict_control": verdict["control"]["verdict"],
            "tolerance_mean": TOL_MEAN, "cells": {}}
     for fam in ("main", "control"):
         for c in verdict[fam]["cells"]:
             exp["cells"][cell_key(c)] = {"mean": c["mean"], "refuted": c["refuted"], "p_holm": c["p_holm"]}
+    if llm_res is not None:
+        exp["llm_verdict"] = llm_res["verdict_text"]
+        exp["llm_cells"] = {cell_key(c): {"mean": c["mean"], "refuted": c["refuted"], "p_holm": c["p_holm"]}
+                            for c in llm_res["cells"]}
     (RESULTS / "expected.json").write_text(json.dumps(roundf(exp, 8), indent=1, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def compare_expected(verdict: dict) -> int:
+def compare_expected(verdict: dict, llm_res: dict | None = None) -> int:
     path = RESULTS / "expected.json"
     if not path.exists():
         print("ERROR: results/expected.json is missing")
@@ -253,6 +262,18 @@ def compare_expected(verdict: dict) -> int:
     for k in exp["cells"]:
         if k not in seen:
             bad.append(f"missing cell {k}")
+    if llm_res is not None and "llm_cells" in exp:  # LLM family: answers come from the cache, so numbers are exact
+        if exp["llm_verdict"] != llm_res["verdict_text"]:
+            bad.append("LLM verdict differs")
+        got = {cell_key(c): c for c in llm_res["cells"]}
+        if set(got) != set(exp["llm_cells"]):
+            bad.append("LLM cells differ")
+        for k, e in exp["llm_cells"].items():
+            c = got.get(k)
+            if c is not None and (abs(c["mean"] - e["mean"]) > 1e-6 or c["refuted"] != e["refuted"]):
+                bad.append(f"{k}: LLM cell differs")
+    elif llm_res is not None:
+        print("note: results/expected.json has no LLM part; LLM numbers not compared")
     if bad:
         print(f"ERROR: {len(bad)} differences from results/expected.json, first: {bad[:5]}")
         return 1

@@ -1,0 +1,12 @@
+{
+ "title": "Twin Leakage Ledger",
+ "upload_type": "software",
+ "description": "Research module on synthetic data: a per-recipient pointwise maximal leakage ledger for the messages of a personal health agent, with declared release rules, a template renderer, a control mode with planted leaks, exact and trained attackers, and a preregistered decisive test. Not a product and not a clinical statement.",
+ "creators": [{"name": "Burg, Paul"}],
+ "license": "Apache-2.0",
+ "access_right": "open",
+ "keywords": ["privacy", "pointwise maximal leakage", "synthetic data", "digital health twins"],
+ "related_identifiers": [
+  {"identifier": "https://github.com/VitaCrypt-Labs/twin-leakage-ledger", "relation": "isSupplementTo", "scheme": "url"}
+ ]
+}

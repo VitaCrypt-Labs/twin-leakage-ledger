@@ -15,6 +15,14 @@ dependencies = [
     "matplotlib==3.11.2",
 ]
 
+[project.optional-dependencies]
+# Only for `make reproduce-llm` (GPU). torch comes from the host image; see docs/KAGGLE.md.
+llm = [
+    "transformers==5.20.2",
+    "accelerate==1.15.0",
+    "safetensors==0.8.0",
+]
+
 [dependency-groups]
 dev = [
     "pytest==9.1.1",

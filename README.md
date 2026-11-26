@@ -5,6 +5,8 @@ SPDX-License-Identifier: CC-BY-4.0
 
 # Twin Leakage Ledger
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24502998.svg)](https://doi.org/10.5281/zenodo.24502998)
+
 Copyright 2026 Paul Burg. Text: CC BY 4.0. Code: Apache-2.0. Data: CC0-1.0.
 
 A research module on **synthetic data**. A personal health agent sends small messages to a doctor, a pharmacy bot, an insurer and a family member. One message says little; hundreds together can reveal a diagnosis the person never shared. The ledger keeps, per recipient, one number: by how much, at most, that recipient's ability to guess any fact about the person has grown over what the recipient already knew. The number is checked by attackers that read the same messages.
@@ -30,6 +32,15 @@ Numbers from `make reproduce` (2 000 test personas per mode, fixed seeds, `resul
 - **Usefulness.** (1) Rules deliver 0.76 / 1.00 / 0.34 / 0.08 of the needed true facts for doctor / pharmacy / insurer / family against about 0.95 for the simulated free agent. (2) A limit of 5x coarsens or drops 70 to 100 percent of messages for the doctor, pharmacy and insurer, because the worst case over possible contents passes it; a limit of 10x costs the doctor 18 percent of needed facts and the pharmacy all of them. (3) See the gap lines above. Details: `results/utility.md`.
 - **Recipient knows more.** With the ledger configured for the published `more` variant: 0 of 120 cells refuted. With the ledger left on `base` while the attacker holds the `more` knowledge: 8 of 120 refuted, the stated edge of the method.
 - Sensitivity: minimal detectable excess is about 0.12 for R and 0.09 for D per cell at 2 000 personas; thin understatement is not detectable.
+
+## Results of the LLM attackers (reduced set, preregistration v2 to v4)
+
+Three open-weight models (Qwen3-4B-Instruct-2507, Mistral-7B-Instruct-v0.3, Phi-4-mini-instruct) read the main-mode messages of 60 personas; recipients doctor and family member; checkpoints 3, 12 and 24 months; three prompt wordings per model (3 240 answers, `cache/llm/`, sums in `cache/llm/SHA256SUMS`). They form their own Holm family of 108 cells (`results/llm_table.md`, `results/llm_verdict.json`).
+
+- **Verdict: bound held**, 0 of 108 cells refuted.
+- **This is a weak test.** With n = 60 personas per cell the minimal detectable excess is about 3.4 for R and 0.51 for D, and every lower bound is negative: only a very large understatement of the bound could have been caught. The full set (200 personas, four recipients, five checkpoints, 36 000 prompts) has not been run. The control mode was not run with LLM attackers; the preregistration does not define it.
+- **Abstention** (complete answer, unusable block, base rates used): Qwen 0.0% diabetes, 1.1% depression, 0.0% pregnancy; Phi 3.8%, 15.2%, 9.9%; Mistral 39.7%, 10.0%, 26.4%. Mistral is marked a **weak attacker** (above 20%). Technical loss (answers cut off) is 0% for all three.
+- **How close to the bound:** at 24 months the mean R of the three LLMs over the five non-trivial doctor and family cells is 0.82 to 0.85, against 0.94 for A0 and A1 (n = 2 000) on the same cells. The LLMs are further from the per-attribute bound than the exact and trained attackers, and A0 is the closest.
 
 ## What is simulated
 
@@ -90,6 +101,14 @@ The `more` variant and the mismatched run in `results/` show what happens when a
 
 Parts of the code and text were written with Claude Code (Anthropic) under the author's direction; commits carry a co-author line. The author is responsible for the content.
 
-## Citation and license
+## LLM attackers (optional, GPU)
 
-See `CITATION.cff`. Code Apache-2.0 (`LICENSE`), data CC0-1.0, texts CC BY 4.0; every file carries an SPDX identifier (`REUSE.toml` covers files that cannot hold comments).
+Three open-weight models (Qwen, Mistral, Phi; Apache-2.0 or MIT; pins in `docs/MODELS.md`) can be run as attackers with `make reproduce-llm`, once, on a free GPU: see `docs/KAGGLE.md`. Answers go to `cache/llm/` (CC0-1.0). `make reproduce` stays CPU-only and offline; if the cache exists it adds the LLM attackers as their own Holm family (`PREREGISTRATION.md`, v2), otherwise it runs exactly as in v0.1.0.
+
+## How to cite
+
+Cite the software with the concept DOI, which always resolves to the latest version: [10.5281/zenodo.24502998](https://doi.org/10.5281/zenodo.24502998). Burg, P. (2026). Twin Leakage Ledger [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.24502998. Machine-readable: `CITATION.cff`.
+
+## License
+
+Code Apache-2.0 (`LICENSE`), data CC0-1.0, texts CC BY 4.0; every file carries an SPDX identifier (`REUSE.toml` covers files that cannot hold comments).

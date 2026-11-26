@@ -2405,6 +2405,549 @@
    "refuted": false
   }
  },
+ "llm_cells": {
+  "main_llm|mistral|doctor|depression|12|D": {
+   "mean": -0.1059001,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|depression|12|R": {
+   "mean": 0.77660615,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|depression|24|D": {
+   "mean": -0.14420205,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|depression|24|R": {
+   "mean": 0.74999763,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|depression|3|D": {
+   "mean": 0.00169186,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|depression|3|R": {
+   "mean": 0.96450691,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|diabetes|12|D": {
+   "mean": 0.0,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|diabetes|12|R": {
+   "mean": 0.97222222,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|diabetes|24|D": {
+   "mean": -0.01666667,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|diabetes|24|R": {
+   "mean": 0.96111111,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|diabetes|3|D": {
+   "mean": 0.0,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|diabetes|3|R": {
+   "mean": 1.0,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|pregnancy|12|D": {
+   "mean": -0.02156983,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|pregnancy|12|R": {
+   "mean": 0.91138645,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|pregnancy|24|D": {
+   "mean": -0.02598093,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|pregnancy|24|R": {
+   "mean": 0.90589347,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|pregnancy|3|D": {
+   "mean": -0.01038428,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|doctor|pregnancy|3|R": {
+   "mean": 0.98228547,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|depression|12|D": {
+   "mean": -0.09103979,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|depression|12|R": {
+   "mean": 0.72586053,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|depression|24|D": {
+   "mean": -0.12733091,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|depression|24|R": {
+   "mean": 0.70689197,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|depression|3|D": {
+   "mean": -0.03981975,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|depression|3|R": {
+   "mean": 0.84515855,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|diabetes|12|D": {
+   "mean": -0.06335251,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|diabetes|12|R": {
+   "mean": 0.94763879,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|diabetes|24|D": {
+   "mean": -0.06979741,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|diabetes|24|R": {
+   "mean": 0.91324414,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|diabetes|3|D": {
+   "mean": -0.05385679,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|diabetes|3|R": {
+   "mean": 0.97489375,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|pregnancy|12|D": {
+   "mean": -0.00744921,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|pregnancy|12|R": {
+   "mean": 1.11122229,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|pregnancy|24|D": {
+   "mean": -0.03333333,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|pregnancy|24|R": {
+   "mean": 0.94692688,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|pregnancy|3|D": {
+   "mean": -0.01140331,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|mistral|family|pregnancy|3|R": {
+   "mean": 0.99912478,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|depression|12|D": {
+   "mean": -0.08923343,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|depression|12|R": {
+   "mean": 0.81815907,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|depression|24|D": {
+   "mean": -0.16086872,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|depression|24|R": {
+   "mean": 0.68599467,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|depression|3|D": {
+   "mean": 0.00169186,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|depression|3|R": {
+   "mean": 0.94730846,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|diabetes|12|D": {
+   "mean": 0.0,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|diabetes|12|R": {
+   "mean": 0.99722222,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|diabetes|24|D": {
+   "mean": -0.01666667,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|diabetes|24|R": {
+   "mean": 0.98055556,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|diabetes|3|D": {
+   "mean": 0.0,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|diabetes|3|R": {
+   "mean": 1.0,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|pregnancy|12|D": {
+   "mean": -0.02156983,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|pregnancy|12|R": {
+   "mean": 0.93333274,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|pregnancy|24|D": {
+   "mean": -0.0426476,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|pregnancy|24|R": {
+   "mean": 0.87812467,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|pregnancy|3|D": {
+   "mean": -0.01038428,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|doctor|pregnancy|3|R": {
+   "mean": 0.98210979,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|depression|12|D": {
+   "mean": -0.09103979,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|depression|12|R": {
+   "mean": 0.70087632,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|depression|24|D": {
+   "mean": -0.12733091,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|depression|24|R": {
+   "mean": 0.67504191,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|depression|3|D": {
+   "mean": -0.03981975,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|depression|3|R": {
+   "mean": 0.82836992,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|diabetes|12|D": {
+   "mean": -0.06335251,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|diabetes|12|R": {
+   "mean": 0.95913241,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|diabetes|24|D": {
+   "mean": -0.06979741,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|diabetes|24|R": {
+   "mean": 0.93570326,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|diabetes|3|D": {
+   "mean": -0.05385679,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|diabetes|3|R": {
+   "mean": 0.98625998,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|pregnancy|12|D": {
+   "mean": -0.02411588,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|pregnancy|12|R": {
+   "mean": 0.96874914,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|pregnancy|24|D": {
+   "mean": -0.03333333,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|pregnancy|24|R": {
+   "mean": 0.94465037,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|pregnancy|3|D": {
+   "mean": -0.01140331,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|phi|family|pregnancy|3|R": {
+   "mean": 0.98721363,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|depression|12|D": {
+   "mean": -0.12256676,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|depression|12|R": {
+   "mean": 0.78761201,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|depression|24|D": {
+   "mean": -0.12753539,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|depression|24|R": {
+   "mean": 0.74893429,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|depression|3|D": {
+   "mean": -0.01497481,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|depression|3|R": {
+   "mean": 0.96679033,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|diabetes|12|D": {
+   "mean": 0.0,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|diabetes|12|R": {
+   "mean": 1.0,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|diabetes|24|D": {
+   "mean": 0.0,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|diabetes|24|R": {
+   "mean": 0.99999444,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|diabetes|3|D": {
+   "mean": 0.0,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|diabetes|3|R": {
+   "mean": 0.99443333,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|pregnancy|12|D": {
+   "mean": -0.02156983,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|pregnancy|12|R": {
+   "mean": 0.92711903,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|pregnancy|24|D": {
+   "mean": -0.02598093,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|pregnancy|24|R": {
+   "mean": 0.9162399,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|pregnancy|3|D": {
+   "mean": -0.01038428,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|doctor|pregnancy|3|R": {
+   "mean": 0.98303972,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|depression|12|D": {
+   "mean": -0.09103979,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|depression|12|R": {
+   "mean": 0.727892,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|depression|24|D": {
+   "mean": -0.12733091,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|depression|24|R": {
+   "mean": 0.71503431,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|depression|3|D": {
+   "mean": -0.03981975,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|depression|3|R": {
+   "mean": 0.82794868,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|diabetes|12|D": {
+   "mean": -0.06335251,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|diabetes|12|R": {
+   "mean": 0.91573188,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|diabetes|24|D": {
+   "mean": -0.06979741,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|diabetes|24|R": {
+   "mean": 0.9021389,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|diabetes|3|D": {
+   "mean": -0.05385679,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|diabetes|3|R": {
+   "mean": 0.96629061,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|pregnancy|12|D": {
+   "mean": -0.02411588,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|pregnancy|12|R": {
+   "mean": 0.97301063,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|pregnancy|24|D": {
+   "mean": -0.03333333,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|pregnancy|24|R": {
+   "mean": 0.95494228,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|pregnancy|3|D": {
+   "mean": -0.01140331,
+   "p_holm": 1.0,
+   "refuted": false
+  },
+  "main_llm|qwen|family|pregnancy|3|R": {
+   "mean": 0.98530888,
+   "p_holm": 1.0,
+   "refuted": false
+  }
+ },
+ "llm_verdict": "bound held (weak attackers, abstention above 20%: mistral)",
  "tolerance_mean": {
   "A0": 1e-06,
   "A1": 0.002
