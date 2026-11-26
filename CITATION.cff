@@ -5,7 +5,7 @@ message: "If you use this software, please cite it as below."
 title: "Twin Leakage Ledger"
 abstract: "Per-recipient pointwise maximal leakage ledger for messages of a personal health agent, with exact rules, a control mode and a preregistered test, on synthetic data."
 type: software
-version: 0.1.0
+version: 0.2.0
 authors:
   - family-names: Burg
     given-names: Paul
