@@ -33,6 +33,15 @@ Numbers from `make reproduce` (2 000 test personas per mode, fixed seeds, `resul
 - **Recipient knows more.** With the ledger configured for the published `more` variant: 0 of 120 cells refuted. With the ledger left on `base` while the attacker holds the `more` knowledge: 8 of 120 refuted, the stated edge of the method.
 - Sensitivity: minimal detectable excess is about 0.12 for R and 0.09 for D per cell at 2 000 personas; thin understatement is not detectable.
 
+## Results of the LLM attackers (reduced set, preregistration v2 to v4)
+
+Three open-weight models (Qwen3-4B-Instruct-2507, Mistral-7B-Instruct-v0.3, Phi-4-mini-instruct) read the main-mode messages of 60 personas; recipients doctor and family member; checkpoints 3, 12 and 24 months; three prompt wordings per model (3 240 answers, `cache/llm/`, sums in `cache/llm/SHA256SUMS`). They form their own Holm family of 108 cells (`results/llm_table.md`, `results/llm_verdict.json`).
+
+- **Verdict: bound held**, 0 of 108 cells refuted.
+- **This is a weak test.** With n = 60 personas per cell the minimal detectable excess is about 3.4 for R and 0.51 for D, and every lower bound is negative: only a very large understatement of the bound could have been caught. The full set (200 personas, four recipients, five checkpoints, 36 000 prompts) has not been run. The control mode was not run with LLM attackers; the preregistration does not define it.
+- **Abstention** (complete answer, unusable block, base rates used): Qwen 0.0% diabetes, 1.1% depression, 0.0% pregnancy; Phi 3.8%, 15.2%, 9.9%; Mistral 39.7%, 10.0%, 26.4%. Mistral is marked a **weak attacker** (above 20%). Technical loss (answers cut off) is 0% for all three.
+- **How close to the bound:** at 24 months the mean R of the three LLMs over the five non-trivial doctor and family cells is 0.82 to 0.85, against 0.94 for A0 and A1 (n = 2 000) on the same cells. The LLMs are further from the per-attribute bound than the exact and trained attackers, and A0 is the closest.
+
 ## What is simulated
 
 - **Persona.** A 24-month history from a closed, enumerable set of 46 875 histories (age group, sex, pregnancy start, and start months of diabetes, depression, antidiabetic medication, SSRI-class medication, raised HbA1c). The probability tables in `data/population.json` are invented assumptions, not epidemiology.
