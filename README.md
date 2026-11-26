@@ -13,6 +13,8 @@ A research module on **synthetic data**. A personal health agent sends small mes
 
 This is research code. It is not a product, makes no guarantee about any shipping product, and says nothing clinical. No real person, no real health record and no personal data are used anywhere. In the current VitaCrypt MVP the server can decrypt user data; nothing in this repository changes that.
 
+The repository became public on GitHub on 24.11.2026, about an hour after the first local commits. The full history from the first commit is public.
+
 ## Run it
 
 ```bash
@@ -49,7 +51,7 @@ Three open-weight models (Qwen3-4B-Instruct-2507, Mistral-7B-Instruct-v0.3, Phi-
 - **Main mode.** Declared release rules (`tll/policy.py`, plain code) decide which claims go to which recipient and on what schedule. A deterministic template renderer (`tll/renderer.py`) writes the message from those claims only; it never sees the rest of the record or any draft. The probability of every possible message is therefore known exactly, which is why the ledger can be exact. Whether a message is sent at all, and when, is part of what is counted. The absence of an expected message counts like a message.
 - **Control mode.** A simulated free agent writes drafts with extra phrases planted in them (`tll/agent_sim.py`). The draft goes out as written. The ledger counts only what a rule-based extractor finds (`tll/extractor.py`). Here the bound must break and the decisive test must catch it; if it does not, the experiment is declared uninformative and `make reproduce` fails.
 - **Limit.** The person can set a limit (2x, 5x, 10x). Before a message goes out the ledger picks the finest version (full, coarse, none) whose worst case over every possible content stays within the limit. The decision uses only the released history and the rules, never the current content.
-- **Attackers.** A0, exact Bayesian (knows the population and the rules). A1, a logistic regression trained on the raw text of 20 000 separate synthetic personas. Attackers based on open LLMs are not part of this version.
+- **Attackers.** A0, exact Bayesian (knows the population and the rules). A1, a logistic regression trained on the raw text of 20 000 separate synthetic personas. Three open-weight LLM attackers (Qwen, Mistral, Phi) are included on the reduced set, with results below; the full LLM set is not run.
 
 ## The bound
 
@@ -85,25 +87,26 @@ The `more` variant and the mismatched run in `results/` show what happens when a
 | `tll/policy.py`, `renderer.py` | release rules and the template renderer |
 | `tll/ledger.py` | the ledger and the limit decision |
 | `tll/agent_sim.py`, `extractor.py` | control mode: free drafts with planted phrases, claim extractor |
-| `tll/attackers/` | A0 exact Bayesian, A1 trained classifier |
+| `tll/attackers/` | A0 exact Bayesian, A1 trained classifier, `a_llm.py` open-weight LLM attackers |
+| `tll/llm_cache.py`, `llm_family.py`, `data/models.json`, `cache/llm/`, `notebooks/` | LLM answer cache, the LLM family of the test, pinned models, the committed answers, the Kaggle notebook |
 | `tll/test_claim.py` | decisive test: intervals, Holm, minimal detectable excess |
 | `tll/utility.py` | cost in usefulness: price of the rules, price of a limit, price of the bound's coarseness |
 | `tll/reproduce.py`, `Makefile`, `results/expected.json` | one command and the check against expected numbers |
-| `PREREGISTRATION.md` | the refutation rule, committed and tagged `prereg-v1` before any result |
+| `PREREGISTRATION.md` | the refutation rule, committed and tagged `prereg-v1` before any result; v2 to v4 for the LLM attackers |
 
-## Limits of this version
+## Limits of this release
 
 - A small closed set of histories, not realistic records. It buys exact numbers; scaling is future work.
 - The rules and the planted phrases are our own assumptions. Passing on this population says nothing about a real deployment.
-- The renderer is a template. A renderer based on an open language model that sees only the allowed claims is future work, as are LLM attackers, collusion between recipients and an on-device prototype.
+- The renderer is a template. Not included: a renderer based on an open language model that sees only the allowed claims, LLM-written drafts, collusion between recipients, the adapter to external synthetic cohorts, Docker, CI and an on-device prototype. The LLM attackers ran on the reduced set only (60 personas, doctor and family member, three checkpoints); the full set of 200 personas, four recipients and five checkpoints has not been run, and the LLM test at n = 60 is weak (see above).
 
 ## Use of AI tools
 
 Parts of the code and text were written with Claude Code (Anthropic) under the author's direction; commits carry a co-author line. The author is responsible for the content.
 
-## LLM attackers (optional, GPU)
+## LLM attackers (GPU step, once)
 
-Three open-weight models (Qwen, Mistral, Phi; Apache-2.0 or MIT; pins in `docs/MODELS.md`) can be run as attackers with `make reproduce-llm`, once, on a free GPU: see `docs/KAGGLE.md`. Answers go to `cache/llm/` (CC0-1.0). `make reproduce` stays CPU-only and offline; if the cache exists it adds the LLM attackers as their own Holm family (`PREREGISTRATION.md`, v2), otherwise it runs exactly as in v0.1.0.
+Three open-weight models (Qwen, Mistral, Phi; Apache-2.0 or MIT; pins in `docs/MODELS.md`) run as attackers with `make reproduce-llm`, once, on a free GPU: see `docs/KAGGLE.md`. The answers of the reduced set are committed in `cache/llm/` (CC0-1.0, sums in `SHA256SUMS`). `make reproduce` stays CPU-only and offline; with the cache present, as in this repository, it adds the LLM attackers as their own Holm family (`PREREGISTRATION.md`, v2 to v4); without the cache it runs the CPU-only part alone.
 
 ## How to cite
 
