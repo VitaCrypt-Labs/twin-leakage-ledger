@@ -30,9 +30,11 @@ def load_family(world: World, cache_dir: Path):
     usable = {m for m, p in ((m, next(p for p in files if p.stem == m)) for m in headers)
               if not any(x > llm_cache.FALLBACK_THRESHOLD for x in llm_cache.fallback_rates(p).values())
               and headers[m].get("format_version") in llm_cache.ACCEPTED_FORMATS}
-    sets = {headers[m]["set"] for m in (usable or headers)}
-    if len(sets) != 1:
+    sets = {headers[m]["set"] for m in usable}
+    if len(sets) > 1:
         raise ValueError(f"cache files hold different sets: {sorted(sets)}")
+    if not sets:  # nothing usable: the refusal names every model
+        sets = {next(iter(headers.values()))["set"]}
     spec = a_llm.resolve_set(world, sets.pop())
     hist, _ = a_llm.personas(world, spec["n"])
     expected = {(pid, i, r, ck) for pid in a_llm.PROMPT_SEEDS for i in range(spec["n"])
@@ -93,6 +95,8 @@ def evaluate(world: World, cache_dir: Path):
     out["older_format_models"] = sorted(m for m in q if fallbacks[m]["format_version"] != llm_cache.FORMAT_VERSION)
     out["verdict_text"] = out["verdict"] + (f" (weak attackers, abstention above {llm_cache.WEAK_ABSTENTION * 100:.0f}%: "
                                             f"{', '.join(out['weak_attackers'])})" if out["weak_attackers"] else "")
+    if out["older_format_models"]:
+        out["verdict_text"] += f" [LOCAL CHECK ONLY: older code version for {', '.join(out['older_format_models'])}]"
     out["cells"] = cells
     return out
 

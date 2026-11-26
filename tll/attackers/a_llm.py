@@ -402,7 +402,7 @@ class HFBackend:
     def _is_oom(self, e: Exception) -> bool:
         types = tuple(t for t in (getattr(self.torch, "OutOfMemoryError", None),
                                   getattr(self.torch.cuda, "OutOfMemoryError", None)) if t)
-        return isinstance(e, types) or "out of memory" in str(e).lower()
+        return isinstance(e, types)
 
     def _stopper(self, prompt_len: int):
         """Stop each sequence as soon as its JSON object is closed. If the transformers API does not accept

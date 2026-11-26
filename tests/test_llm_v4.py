@@ -213,3 +213,34 @@ def test_technical_loss_still_refuses_but_abstention_does_not(world, tmp_path):
         assert llm_family.evaluate(world, tmp_path)["status"] == "refused"
     finally:
         a_llm.SETS.pop("tiny", None)
+
+
+def test_older_format_is_marked_in_the_verdict_text(world, tmp_path):
+    a_llm.SETS["tiny"] = {"n": 6, "recipients": ("doctor",), "checkpoints": (3, 6)}
+    try:
+        _fill(world, tmp_path, ("phi",))
+        p = tmp_path / "phi.jsonl"
+        lines = p.read_text().splitlines()
+        h = json.loads(lines[0])
+        h["format_version"] = 3
+        p.write_text("\n".join([json.dumps(h)] + lines[1:]) + "\n")
+        res = llm_family.evaluate(world, tmp_path)
+        assert res["status"] == "ok" and "LOCAL CHECK ONLY" in res["verdict_text"]
+    finally:
+        a_llm.SETS.pop("tiny", None)
+
+
+def test_all_degraded_mixed_sets_still_refuse_cleanly(world, tmp_path):
+    (tmp_path / "qwen.jsonl").write_text((Path(__file__).parent / "fixtures" / "qwen_v2_truncated.jsonl").read_text())
+    h = json.loads(FIX.read_text().splitlines()[0])
+    h["set"] = "full"
+    h["format_version"] = 4
+    rows = FIX.read_text().splitlines()[1:]
+    bad = []
+    for x in rows:
+        r = json.loads(x)
+        r["loss"], r["abstain"], r["fallback"], r["closed"] = ["diabetes"], [], ["diabetes"], False
+        bad.append(json.dumps(r))
+    (tmp_path / "mistral.jsonl").write_text("\n".join([json.dumps(h)] + bad) + "\n")
+    res = llm_family.evaluate(world, tmp_path)
+    assert res["status"] == "refused" and set(res["degraded_models"]) == {"qwen", "mistral"}
