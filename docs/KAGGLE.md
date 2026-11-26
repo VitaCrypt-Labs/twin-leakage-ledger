@@ -38,9 +38,9 @@ The notebook `notebooks/kaggle_llm_attackers.ipynb` clones this public repositor
 
 1. Download `cache_llm.zip` from the notebook Output.
 2. Unzip it into the repository so that the files are `cache/llm/qwen.jsonl`, `cache/llm/mistral.jsonl`, `cache/llm/phi.jsonl`.
-3. `make reproduce` (CPU only, offline) now adds the LLM attackers as their own Holm family and writes `results/llm_verdict.json` and `results/llm_table.md`. Without the cache it runs exactly as v0.1.0.
+3. `make reproduce` (CPU only, offline) now adds the LLM attackers as their own Holm family and writes `results/llm_verdict.json` and `results/llm_table.md`. Without the cache it runs the CPU-only part alone.
 4. The cache is data under CC0-1.0.
 
 ## Not verified
 
-This path was tested on a server without GPU with a stub model and recorded fake answers (parsing, cache, resume, family assembly). It was not run on Kaggle or with a real model. Possible friction: the torch version of the Kaggle image against the pinned `transformers`, memory of Mistral-7B in float16 across two T4 cards, and the real speed.
+The code was tested on a server without GPU with a stub model and recorded answers (parsing, cache, resume, family assembly); the GPU path ran on Kaggle at tag `prereg-v4` (three models, reduced set). Possible friction on other hosts: the torch version of the Kaggle image against the pinned `transformers`, memory of Mistral-7B in float16 across two T4 cards, and the real speed.
