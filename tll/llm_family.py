@@ -133,6 +133,11 @@ def write_outputs(world: World, res: dict, results_dir: Path) -> None:
             L.append(f"| {m} | {f['answers']} | " + " | ".join(f"{lo[a] * 100:.1f}%" for a in world.sensitive) + " | "
                      + " | ".join(f"{ab[a] * 100:.1f}%" for a in world.sensitive) + f" | {mark} |")
         last = spec["checkpoints"][-1]
+        mde_r = sorted(c["min_detectable_excess"] for c in res["cells"] if c["statistic"] == "R")
+        mde_d = sorted(c["min_detectable_excess"] for c in res["cells"] if c["statistic"] == "D")
+        L += ["", f"Sensitivity with n = {spec['n']} personas per cell: minimal detectable excess (width of the lower bound at the "
+              f"strictest Holm step), median R {mde_r[len(mde_r) // 2]:.3f} (range {mde_r[0]:.3f} to {mde_r[-1]:.3f}), "
+              f"median D {mde_d[len(mde_d) // 2]:.3f} (range {mde_d[0]:.3f} to {mde_d[-1]:.3f}). Only large understatement is detectable."]
         L += ["", f"At checkpoint {last}. Mean R and D with the distribution-free 95% lower bound in brackets.", "",
               "| Model | Recipient | Attribute | Mean R | Mean D | Refuted cells |", "|---|---|---|---|---|---|"]
         for m in res["fallbacks"]:
@@ -160,15 +165,16 @@ def refusal_message(res: dict) -> str:
     return "; ".join(parts) + ". The LLM family is not built from a degraded cache."
 
 
-def run_if_cache(world: World, results_dir: Path, cache_dir: Path = llm_cache.DEFAULT_DIR) -> None:
+def run_if_cache(world: World, results_dir: Path, cache_dir: Path = llm_cache.DEFAULT_DIR) -> dict | None:
+    """Builds the family when a cache exists; returns the result (None without a cache or when unusable)."""
     try:
         res = evaluate(world, cache_dir)
     except (ValueError, KeyError) as e:
         print(f"LLM cache unusable, family not built: {e}")
-        return
+        return None
     if res is None:
         print("LLM cache: none, CPU-only run (as in v0.1.0)")
-        return
+        return None
     write_outputs(world, res, results_dir)
     if res["status"] == "refused":
         print("LLM cache refused: " + refusal_message(res))
@@ -182,3 +188,4 @@ def run_if_cache(world: World, results_dir: Path, cache_dir: Path = llm_cache.DE
             print(f"  WARNING: older code version (format 3) for {', '.join(res['older_format_models'])}: local check only")
     else:
         print(f"LLM cache incomplete, family not evaluated: {res['incomplete_models']}")
+    return res
