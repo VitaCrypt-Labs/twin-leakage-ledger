@@ -56,3 +56,15 @@ Tokens of a complete answer for the largest value sets (diabetes and depression 
 | phi | 152 | 194 | 222 | 166 |
 
 The budget is `max_new_tokens = 800` (more than twice the longest value, 389); generation stops when the JSON object closes.
+
+## Memory plan on two 15 GiB GPUs (estimate, not measured)
+
+Longest prompt of the full set (doctor, month 24): Qwen 1 640, Mistral 1 800, Phi 1 550 tokens. Weights are spread evenly over both cards; the answer budget is 800 tokens. Key-value cache per token: Qwen 0.14 MiB, Mistral 0.125 MiB, Phi 0.125 MiB.
+
+| Model | Weights per card | Token budget | Largest batch at the longest prompt | Cache of that batch | Expected peak per card |
+|---|---|---|---|---|---|
+| qwen | about 3.8 GiB | 14 000 | 5 | about 1.7 GiB | about 5.5 GiB |
+| mistral | about 6.8 GiB | 10 000 | 3 | about 1.0 GiB | about 8.5 GiB |
+| phi | about 3.8 GiB | 14 000 | 5 | about 1.4 GiB | about 5.5 GiB |
+
+The v3 run died with Mistral weights (13.5 GiB) on one card and batch 8. Peak includes weights, cache, prefill activations and about 0.5 GiB of overhead. Check the first minutes of the run: the loader prints the free memory after loading each model.

@@ -29,7 +29,7 @@ def load_family(world: World, cache_dir: Path):
         headers[h["model_key"]], recs[h["model_key"]] = h, r
     usable = {m for m, p in ((m, next(p for p in files if p.stem == m)) for m in headers)
               if not any(x > llm_cache.FALLBACK_THRESHOLD for x in llm_cache.fallback_rates(p).values())
-              and headers[m].get("format_version") == llm_cache.FORMAT_VERSION}
+              and headers[m].get("format_version") in llm_cache.ACCEPTED_FORMATS}
     sets = {headers[m]["set"] for m in (usable or headers)}
     if len(sets) != 1:
         raise ValueError(f"cache files hold different sets: {sorted(sets)}")
@@ -39,12 +39,12 @@ def load_family(world: World, cache_dir: Path):
                 for r in spec["recipients"] for ck in spec["checkpoints"]}
     q, fallbacks, incomplete, degraded = {}, {}, {}, {}
     for m, rs in recs.items():
-        rates = llm_cache.fallback_rates(next(p for p in files if p.stem == m))
-        high = {a: r for a, r in rates.items() if r > llm_cache.FALLBACK_THRESHOLD}
+        rt = llm_cache.rates(next(p for p in files if p.stem == m))
+        high = {a: r for a, r in rt["loss"].items() if r > llm_cache.FALLBACK_THRESHOLD}
         if high:
             degraded[m] = high
             continue
-        if headers[m].get("format_version") != llm_cache.FORMAT_VERSION:
+        if headers[m].get("format_version") not in llm_cache.ACCEPTED_FORMATS:
             degraded[m] = {"format_version": headers[m].get("format_version")}
             continue
         missing = expected - set(rs)
@@ -62,7 +62,7 @@ def load_family(world: World, cache_dir: Path):
             for a in world.sensitive:
                 qm[r][ck][a][i] += np.array(rec["parsed"][a]) / len(a_llm.PROMPT_SEEDS)
                 fb[a] += a in rec["fallback"]
-        q[m], fallbacks[m] = qm, {"answers": len(expected), **fb}
+        q[m], fallbacks[m] = qm, {"answers": len(expected), **fb, "rates": rt, "format_version": headers[m]["format_version"]}
     return spec, q, fallbacks, incomplete, degraded
 
 
@@ -88,6 +88,11 @@ def evaluate(world: World, cache_dir: Path):
     out["family_size"] = len(cells)
     out["refuted_cells"] = sum(c["refuted"] for c in cells)
     out["verdict"] = tc.verdict_main(cells)
+    out["weak_attackers"] = sorted(m for m in q if any(x > llm_cache.WEAK_ABSTENTION
+                                                       for x in fallbacks[m]["rates"]["abstain"].values()))
+    out["older_format_models"] = sorted(m for m in q if fallbacks[m]["format_version"] != llm_cache.FORMAT_VERSION)
+    out["verdict_text"] = out["verdict"] + (f" (weak attackers, abstention above {llm_cache.WEAK_ABSTENTION * 100:.0f}%: "
+                                            f"{', '.join(out['weak_attackers'])})" if out["weak_attackers"] else "")
     out["cells"] = cells
     return out
 
@@ -107,12 +112,22 @@ def write_outputs(world: World, res: dict, results_dir: Path) -> None:
     else:
         spec = res["set"]
         L += [f"- Set: {spec['name']} ({spec['n']} personas, recipients {spec['recipients']}, checkpoints {spec['checkpoints']}).",
-              f"- Verdict: **{res['verdict']}** ({res['refuted_cells']} of {res['family_size']} cells refuted).",
+              f"- Verdict: **{res['verdict_text']}** ({res['refuted_cells']} of {res['family_size']} cells refuted).",
               f"- Incomplete models left out: {res['incomplete_models'] or 'none'}.",
-              f"- Degraded models left out (unreadable-answer rate above the limit): {res['degraded_models'] or 'none'}.", "",
-              "| Model | Answers | Unreadable diabetes | Unreadable depression | Unreadable pregnancy |", "|---|---|---|---|---|"]
+              f"- Degraded models left out (technical loss above the limit): {res['degraded_models'] or 'none'}.",
+              "- Technical loss: the answer was cut off and the base rates were used. Limit 5% per model and attribute; above it the model is refused.",
+              "- Abstention: the answer was complete but the attribute block was not a usable distribution; the base rates were used. "
+              "Valid for the test, but it weakens the attacker. A model with abstention above 20% on any attribute is marked weak; no model is dropped for it.", ""]
+        if res["older_format_models"]:
+            L += [f"- WARNING: answers of {', '.join(res['older_format_models'])} come from an older code version (format 3), "
+                  "not from the tagged v4 run. For local checks only.", ""]
+        L += ["| Model | Answers | Loss diabetes | Loss depression | Loss pregnancy | Abstain diabetes | Abstain depression | Abstain pregnancy | Mark |",
+              "|---|---|---|---|---|---|---|---|---|"]
         for m, f in res["fallbacks"].items():
-            L.append(f"| {m} | {f['answers']} | {f['diabetes']} | {f['depression']} | {f['pregnancy']} |")
+            lo, ab = f["rates"]["loss"], f["rates"]["abstain"]
+            mark = "weak attacker" if m in res["weak_attackers"] else ""
+            L.append(f"| {m} | {f['answers']} | " + " | ".join(f"{lo[a] * 100:.1f}%" for a in world.sensitive) + " | "
+                     + " | ".join(f"{ab[a] * 100:.1f}%" for a in world.sensitive) + f" | {mark} |")
         last = spec["checkpoints"][-1]
         L += ["", f"At checkpoint {last}. Mean R and D with the distribution-free 95% lower bound in brackets.", "",
               "| Model | Recipient | Attribute | Mean R | Mean D | Refuted cells |", "|---|---|---|---|---|---|"]
@@ -134,9 +149,9 @@ def refusal_message(res: dict) -> str:
     parts = []
     for m, d in res["degraded_models"].items():
         if "format_version" in d:
-            parts.append(f"{m}: cache written by an older format ({d['format_version']}), not valid")
+            parts.append(f"{m}: cache written by an unsupported format ({d['format_version']}), not valid")
         else:
-            parts.append(f"{m}: unreadable-answer rate " + ", ".join(f"{a} {r * 100:.1f}%" for a, r in d.items())
+            parts.append(f"{m}: unreadable-answer rate (answers cut off) " + ", ".join(f"{a} {r * 100:.1f}%" for a, r in d.items())
                          + f" is above the limit of {llm_cache.FALLBACK_THRESHOLD * 100:.0f}%")
     return "; ".join(parts) + ". The LLM family is not built from a degraded cache."
 
@@ -154,6 +169,12 @@ def run_if_cache(world: World, results_dir: Path, cache_dir: Path = llm_cache.DE
     if res["status"] == "refused":
         print("LLM cache refused: " + refusal_message(res))
     elif res["status"] == "ok":
-        print(f"LLM family verdict: {res['verdict']} ({res['refuted_cells']} of {res['family_size']} cells refuted)")
+        print(f"LLM family verdict: {res['verdict_text']} ({res['refuted_cells']} of {res['family_size']} cells refuted)")
+        for m, f in res["fallbacks"].items():
+            lo, ab = f["rates"]["loss"], f["rates"]["abstain"]
+            print(f"  {m}: technical loss " + ", ".join(f"{a} {x * 100:.1f}%" for a, x in lo.items())
+                  + "; abstention " + ", ".join(f"{a} {x * 100:.1f}%" for a, x in ab.items()))
+        if res["older_format_models"]:
+            print(f"  WARNING: older code version (format 3) for {', '.join(res['older_format_models'])}: local check only")
     else:
         print(f"LLM cache incomplete, family not evaluated: {res['incomplete_models']}")

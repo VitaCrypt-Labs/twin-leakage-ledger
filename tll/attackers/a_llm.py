@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: 2026 Paul Burg
 # SPDX-License-Identifier: Apache-2.0
-"""LLM attackers (preregistration v2, corrected by v3). Three open-weight models of three families read the messages a
+"""LLM attackers (preregistration v2, corrected by v3 and v4). Three open-weight models of three families read the messages a
 recipient received up to a checkpoint and state a probability distribution over the values of each
 sensitive attribute. Answers are cached in cache/llm/ (see llm_cache.py).
 
-Prompt wordings p1, p2, p3 and their seeds are fixed here and are part of `prereg-v3` (v2 text plus one sentence);
+Prompt wordings p1, p2, p3 and their seeds are fixed here and are part of `prereg-v4` (v2 text plus one sentence, added in v3);
 do not edit them after that tag. Run: python -m tll.attackers.a_llm --set reduced --dry-run
 """
 from __future__ import annotations
@@ -30,7 +30,7 @@ PROMPT_SEEDS = {"p1": 101, "p2": 102, "p3": 103}
 # Longest valid answer measured with each model's own tokenizer: 389 tokens (pretty-printed, 16-digit numbers,
 # largest value sets; docs/MODELS.md). The budget is twice that, rounded up; generation stops when the object closes.
 MAX_NEW_TOKENS = 800
-FORMAT_VERSION = 3
+FORMAT_VERSION = 4
 TEMPERATURE = 0.3
 TOP_P = 0.95
 
@@ -184,6 +184,7 @@ def build_prompt(world: World, prompt_id: str, recipient: str, hist: int, outcom
 
 # ---- parsing ---------------------------------------------------------------------------------
 _NONE_ALIASES = ("none", "no", "never", "absent")
+_PERCENT = re.compile(r"(\d)\s*%")
 
 
 def _num(v):
@@ -219,8 +220,8 @@ def _dist(val, labels: list[str]):
         out = []
         for lab in labels:
             cands = [lab, f"month {lab}", f"m{lab}"] + (list(_NONE_ALIASES) if lab == "none" else [])
-            hit = next((low[c] for c in cands if c in low), 0.0)
-            out.append(_num(hit))
+            hit = next((low[c] for c in cands if c in low), None)
+            out.append(_num(hit))  # a missing key is not guessed: the block is not a usable distribution
         if any(x is None for x in out):
             return None
     elif isinstance(val, list) and len(val) == len(labels):
@@ -271,7 +272,7 @@ def _salvage_block(raw: str, attr: str, labels: list[str]):
 def parse_answer(raw: str, labels_by_attr: dict[str, list[str]]) -> dict[str, list[float] | None]:
     """Per attribute a normalised distribution, or None when it cannot be read. Every attribute whose block
     is complete and valid is kept, also when the answer is cut off or another block is broken."""
-    raw = raw or ""
+    raw = _PERCENT.sub(r"\1", raw or "")  # technical reading only: "26.3%" is 26.3; expressions are never evaluated
     res = {a: None for a in labels_by_attr}
     obj = _find_object(raw)
     if obj is not None:
@@ -285,11 +286,18 @@ def parse_answer(raw: str, labels_by_attr: dict[str, list[str]]) -> dict[str, li
     return res
 
 
-def finalize(world: World, raw: str, prior: dict) -> tuple[dict, list[str]]:
+def finalize(world: World, raw: str, prior: dict) -> tuple[dict, list[str], list[str], list[str]]:
+    """Returns (distributions with base rates where unreadable, fallback attributes, abstained, lost).
+    Abstained: the object is complete but the attribute block is not a usable distribution.
+    Lost: the object never closed (cut off) and the block is missing or broken."""
     labels = {a: value_labels(world, a) for a in world.sensitive}
     parsed = parse_answer(raw, labels)
     fallback = [a for a in world.sensitive if parsed[a] is None]
-    return {a: (parsed[a] if parsed[a] is not None else prior[a]) for a in world.sensitive}, fallback
+    closed = json_closed(raw)
+    abstain = fallback if closed else []
+    lost = [] if closed else fallback
+    return ({a: (parsed[a] if parsed[a] is not None else prior[a]) for a in world.sensitive},
+            fallback, abstain, lost)
 
 
 # ---- backends --------------------------------------------------------------------------------
@@ -322,15 +330,50 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def run_with_oom_retry(run, idx: list, is_oom, on_retry=lambda n: None) -> dict:
+    """run(idx) -> {index: answer}. On an out-of-memory error the batch is split in halves and retried;
+    a single item that still fails raises."""
+    try:
+        return run(idx)
+    except Exception as e:  # noqa: BLE001
+        if not is_oom(e) or len(idx) == 1:
+            raise
+        on_retry(len(idx))
+        h = len(idx) // 2
+        out = run_with_oom_retry(run, idx[:h], is_oom, on_retry)
+        out.update(run_with_oom_retry(run, idx[h:], is_oom, on_retry))
+        return out
+
+
+def plan_batches(lengths: list[int], max_batch: int, token_budget: int, new_tokens: int) -> list[list[int]]:
+    """Batches of indices over prompts sorted by length: at most max_batch items and
+    batch size x (longest prompt + answer budget) within token_budget (at least one item)."""
+    order = sorted(range(len(lengths)), key=lambda i: lengths[i])
+    batches, cur = [], []
+    for i in order:
+        longest = max([lengths[j] for j in cur] + [lengths[i]])
+        if cur and (len(cur) >= max_batch or (len(cur) + 1) * (longest + new_tokens) > token_budget):
+            batches.append(cur)
+            cur = []
+        cur.append(i)
+    if cur:
+        batches.append(cur)
+    return batches
+
+
 class HFBackend:
-    """Hugging Face transformers on a GPU. Downloads the pinned revision, checks file hashes."""
+    """Hugging Face transformers on one or two GPUs. Downloads the pinned revision, checks file hashes.
+    Weights are spread evenly over the visible GPUs; batches are limited by a token budget per model and
+    split in halves when memory runs out."""
 
     def __init__(self, spec: dict, batch_size: int):
         import torch
         from huggingface_hub import snapshot_download
         from transformers import AutoModelForCausalLM, AutoTokenizer
         self.torch = torch
-        self.batch_size = batch_size
+        self.max_batch = batch_size
+        self.token_budget = int(spec.get("batch_token_budget", 8000))
+        self.oom_retries = 0
         path = Path(snapshot_download(spec["hf_id"], revision=spec["revision"], allow_patterns=spec["allow_patterns"]))
         for f in spec["files"]:
             got = sha256_file(path / f["path"])
@@ -340,8 +383,26 @@ class HFBackend:
         self.tok.padding_side = "left"
         if self.tok.pad_token is None:
             self.tok.pad_token = self.tok.eos_token
-        self.model = AutoModelForCausalLM.from_pretrained(path, dtype=torch.float16, device_map="auto").eval()
+        n_gpu = torch.cuda.device_count()
+        self.model = AutoModelForCausalLM.from_pretrained(
+            path, dtype=torch.float16, device_map="balanced" if n_gpu > 1 else "auto").eval()
         self.torch_version = torch.__version__
+        self._seed_counter = 0
+        free = [torch.cuda.mem_get_info(i)[0] / 2**30 for i in range(n_gpu)]
+        print(f"loaded {spec['hf_id']} on {n_gpu} GPU(s); free memory after loading: "
+              + ", ".join(f"{x:.1f} GiB" for x in free) + f"; batch cap {self.max_batch}, token budget {self.token_budget}",
+              flush=True)
+
+    def close(self) -> None:
+        import gc
+        self.model = None
+        gc.collect()
+        self.torch.cuda.empty_cache()
+
+    def _is_oom(self, e: Exception) -> bool:
+        types = tuple(t for t in (getattr(self.torch, "OutOfMemoryError", None),
+                                  getattr(self.torch.cuda, "OutOfMemoryError", None)) if t)
+        return isinstance(e, types) or "out of memory" in str(e).lower()
 
     def _stopper(self, prompt_len: int):
         """Stop each sequence as soon as its JSON object is closed. If the transformers API does not accept
@@ -367,26 +428,44 @@ class HFBackend:
             print(f"stop-on-close not available ({e}); generating to the end token", flush=True)
             return None
 
-    def generate(self, items: list[Item], seed: int) -> list[str]:
+    def _gen(self, texts: list[str], seed: int) -> list[str]:
         torch = self.torch
-        out = []
-        for b in range(0, len(items), self.batch_size):
-            chunk = items[b:b + self.batch_size]
-            texts = [self.tok.apply_chat_template([{"role": "user", "content": it.prompt}],
-                                                  add_generation_prompt=True, tokenize=False) for it in chunk]
-            enc = self.tok(texts, return_tensors="pt", padding=True, add_special_tokens=False).to(self.model.device)
-            torch.manual_seed(seed + b // self.batch_size)
-            kwargs = {}
-            stop = self._stopper(enc["input_ids"].shape[1])
-            if stop is not None:
-                kwargs["stopping_criteria"] = stop
+        enc = self.tok(texts, return_tensors="pt", padding=True, add_special_tokens=False).to(self.model.device)
+        torch.manual_seed(seed)
+        kwargs = {}
+        stop = self._stopper(enc["input_ids"].shape[1])
+        if stop is not None:
+            kwargs["stopping_criteria"] = stop
+        try:
             with torch.no_grad():
                 gen = self.model.generate(**enc, max_new_tokens=MAX_NEW_TOKENS, do_sample=True,
                                           temperature=TEMPERATURE, top_p=TOP_P, pad_token_id=self.tok.pad_token_id,
                                           **kwargs)
-            new = gen[:, enc["input_ids"].shape[1]:]
-            out += self.tok.batch_decode(new, skip_special_tokens=True)
-        return out
+            return self.tok.batch_decode(gen[:, enc["input_ids"].shape[1]:], skip_special_tokens=True)
+        finally:
+            del enc
+            torch.cuda.empty_cache()
+
+    def generate(self, items: list[Item], seed: int) -> list[str]:
+        texts = [self.tok.apply_chat_template([{"role": "user", "content": it.prompt}],
+                                              add_generation_prompt=True, tokenize=False) for it in items]
+        lengths = [len(self.tok(t, add_special_tokens=False)["input_ids"]) for t in texts]
+        out: dict = {}
+
+        def note(n):
+            self.oom_retries += 1
+            self.torch.cuda.empty_cache()
+            print(f"out of memory with {n} prompts in a batch; retrying in halves (retry {self.oom_retries})", flush=True)
+
+        for b in plan_batches(lengths, self.max_batch, self.token_budget, MAX_NEW_TOKENS):
+            self._seed_counter += 1
+            sd = seed + self._seed_counter
+
+            def run(idx, sd=sd):
+                return dict(zip(idx, self._gen([texts[i] for i in idx], sd)))
+
+            out.update(run_with_oom_retry(run, b, self._is_oom, note))
+        return [out[i] for i in range(len(items))]
 
 
 # ---- run -------------------------------------------------------------------------------------
@@ -416,35 +495,49 @@ def run_model(world: World, spec: dict, model_key: str, model_spec: dict, backen
     f = llm_cache.open_for_append(path, header)
     done = set(llm_cache.load_model(path)[1])
     items = plan_items(world, spec, model_key, done)
-    if limit is not None:
-        items = items[:limit]
+    if limit is not None:  # speed and memory check: the longest prompts, where memory is tightest
+        items = sorted(items, key=lambda it: -len(it.prompt))[:limit]
     items.sort(key=lambda it: (it.prompt_id, len(it.prompt)))
     t0, n_done = time.time(), 0
+    try:
+        n_done = _generate_all(world, model_key, model_spec, backend, items, f, chunk, t0)
+    finally:
+        f.close()
+    return n_done
+
+
+def _generate_all(world, model_key, model_spec, backend, items, f, chunk, t0) -> int:
+    n_done = 0
     for c in range(0, len(items), chunk):
         part = items[c:c + chunk]
         for pid in {it.prompt_id for it in part}:
             sub = [it for it in part if it.prompt_id == pid]
             raws = backend.generate(sub, PROMPT_SEEDS[pid] + 7919 * (c // chunk))  # chunk offset keeps streams apart
             for it, raw in zip(sub, raws):
-                parsed, fb = finalize(world, raw, it.prior)
+                parsed, fb, ab, lost = finalize(world, raw, it.prior)
                 llm_cache.append(f, {"model_key": model_key, "model_revision": model_spec["revision"],
                                      "prompt_id": it.prompt_id, "seed": PROMPT_SEEDS[pid], "persona": it.persona,
                                      "history": it.hist, "recipient": it.recipient, "checkpoint": it.checkpoint,
-                                     "raw": raw, "closed": json_closed(raw), "parsed": parsed, "fallback": fb})
+                                     "raw": raw, "closed": json_closed(raw), "parsed": parsed, "fallback": fb,
+                                     "abstain": ab, "loss": lost})
         n_done += len(part)
         rate = (time.time() - t0) / n_done
         print(f"[{model_key}] {n_done}/{len(items)} answers, {rate:.2f} s each, "
               f"about {(len(items) - n_done) * rate / 60:.0f} min left", flush=True)
-    f.close()
     return n_done
 
 
 def report_fallbacks(model_key: str, path: Path) -> dict:
-    rates = llm_cache.fallback_rates(path)
-    bad = {a: r for a, r in rates.items() if r > llm_cache.FALLBACK_THRESHOLD}
-    line = ", ".join(f"{a} {r * 100:.1f}%" for a, r in rates.items())
-    print(f"[{model_key}] unreadable answers replaced by the base rates: {line} "
+    """Prints technical loss (cut-off answers; limit applies) and abstention (complete but unusable block;
+    visible, no limit). Returns the attributes whose technical loss is above the limit."""
+    r = llm_cache.rates(path)
+    bad = {a: x for a, x in r["loss"].items() if x > llm_cache.FALLBACK_THRESHOLD}
+    fmt = lambda d: ", ".join(f"{a} {x * 100:.1f}%" for a, x in d.items())  # noqa: E731
+    print(f"[{model_key}] {r['n']} answers. Technical loss (cut off, base rates used): {fmt(r['loss'])} "
           f"(limit {llm_cache.FALLBACK_THRESHOLD * 100:.0f}%)" + ("  ** TOO HIGH **" if bad else ""), flush=True)
+    weak = any(x > llm_cache.WEAK_ABSTENTION for x in r["abstain"].values())
+    print(f"[{model_key}] Abstention (complete answer, unusable block, base rates used): {fmt(r['abstain'])}"
+          + ("  -> weak attacker (above 20%)" if weak else ""), flush=True)
     return bad
 
 
@@ -483,19 +576,32 @@ def main(argv=None) -> int:
     print(f"estimated generation time: about {est / 3600:.1f} h plus downloads (assumption, not measured)")
     if a.dry_run:
         return 0
-    failed = []
-    for k in keys:
-        backend = StubBackend(a.stub_garbage) if a.backend == "stub" else HFBackend(registry[k], a.batch_size)
-        n = run_model(world, spec, k, registry[k], backend, Path(a.cache_dir), a.limit)
-        print(f"[{k}] wrote {n} answers to {a.cache_dir}")
-        if report_fallbacks(k, Path(a.cache_dir) / f"{k}.jsonl"):
+    failed, crashed = [], []
+    for k in keys:  # one model failing does not stop the next one
+        backend = None
+        try:
+            backend = StubBackend(a.stub_garbage) if a.backend == "stub" else HFBackend(registry[k], a.batch_size)
+            n = run_model(world, spec, k, registry[k], backend, Path(a.cache_dir), a.limit)
+            print(f"[{k}] wrote {n} answers to {a.cache_dir}")
+        except Exception as e:  # noqa: BLE001
+            crashed.append(k)
+            print(f"[{k}] FAILED: {type(e).__name__}: {str(e)[:300]}. Answers written so far stay in the cache; "
+                  "run again to resume. Continuing with the next model.", flush=True)
+        finally:
+            if backend is not None and hasattr(backend, "close"):
+                backend.close()
+            del backend
+        if (Path(a.cache_dir) / f"{k}.jsonl").exists() and report_fallbacks(k, Path(a.cache_dir) / f"{k}.jsonl"):
             failed.append(k)
-        del backend
+    rc = 0
     if failed:
-        print(f"ERROR: unreadable-answer rate above {llm_cache.FALLBACK_THRESHOLD * 100:.0f}% for: {', '.join(failed)}. "
+        print(f"ERROR: technical loss (answers cut off) above {llm_cache.FALLBACK_THRESHOLD * 100:.0f}% for: {', '.join(failed)}. "
               "These answers would make a degraded attacker; do not use this cache.")
-        return 3
-    return 0
+        rc = 3
+    if crashed:
+        print(f"ERROR: model run failed for: {', '.join(crashed)}.")
+        rc = 4
+    return rc
 
 
 if __name__ == "__main__":

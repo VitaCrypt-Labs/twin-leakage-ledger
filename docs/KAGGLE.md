@@ -7,7 +7,7 @@ SPDX-License-Identifier: CC-BY-4.0
 
 Copyright 2026 Paul Burg.
 
-The notebook `notebooks/kaggle_llm_attackers.ipynb` clones this public repository at the tag `prereg-v3`, installs the pinned extra packages (`requirements-llm.txt`), downloads the pinned weights listed in `docs/MODELS.md` and checks their SHA-256, runs `make reproduce-llm` and leaves the answers in `cache/llm/`. No secrets, no paid resources.
+The notebook `notebooks/kaggle_llm_attackers.ipynb` clones this public repository at the tag `prereg-v4`, installs the pinned extra packages (`requirements-llm.txt`), downloads the pinned weights listed in `docs/MODELS.md` and checks their SHA-256, runs `make reproduce-llm` and leaves the answers in `cache/llm/`. No secrets, no paid resources.
 
 ## What to switch on in Kaggle
 
@@ -23,6 +23,8 @@ The notebook `notebooks/kaggle_llm_attackers.ipynb` clones this public repositor
 
 - Interactive sessions are stopped after about 40 idle minutes and lose their files. An unattended run must be a background version: **Save Version, Save & Run All (Commit), with the GPU accelerator and Internet on**. The queue for a background GPU version can take many hours; the output (`cache_llm.zip`) appears under the version's Output after it finishes.
 - The reduced set for three models takes about 2.5 to 3.5 hours on two T4 (measured: about 2.1 to 2.7 s per answer, 49 minutes for Qwen).
+- The run at `prereg-v3` showed two more things (see `PREREGISTRATION.md`, v4): Mistral-7B ran out of GPU memory with its weights on one card, so weights are now spread over both cards, batches are limited by a token budget and retried in halves on an out-of-memory error, and one failing model no longer stops the next; and Mistral often returns blocks that are not distributions, which is reported as abstention and marks the model a weak attacker above 20% (it is not dropped).
+- The speed-check cell now runs the 32 longest prompts of every model and prints technical-loss and abstention rates; an out-of-memory problem shows up there, not after hours.
 - The first run was invalid because answers were cut off by the token limit (see `PREREGISTRATION.md`, v3). The code now prints the share of unreadable answers per model and attribute and stops with an error above 5%. Look at the speed-check cell (32 answers): it must print a rate below 5% for all three attributes before you start the long run.
 
 ## Sizes and limits

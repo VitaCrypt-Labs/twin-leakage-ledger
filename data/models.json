@@ -11,6 +11,7 @@
    "license": "Apache-2.0", "released": "2025-08-05",
    "allow_patterns": ["*.json", "merges.txt", "model-*.safetensors"],
    "assumed_seconds_per_prompt": 1.0,
+   "batch_token_budget": 14000,
    "files": [
     {"path": "model-00001-of-00003.safetensors", "sha256": "75311d91bb08cf0b882913da464a1e722a31fb44db35208663487efb7a3d8ed6"},
     {"path": "model-00002-of-00003.safetensors", "sha256": "0b48adbb1f60e901153d91907ba11ce63bd4b8b584482e730f48808d055dfba1"},
@@ -24,6 +25,7 @@
    "license": "Apache-2.0", "released": "2024-05-22",
    "allow_patterns": ["*.json", "tokenizer.model*", "model-*.safetensors"],
    "assumed_seconds_per_prompt": 1.8,
+   "batch_token_budget": 10000,
    "files": [
     {"path": "model-00001-of-00003.safetensors", "sha256": "ce6fb6f6f4d0183f4813cbf4ece24109da629a08d4210da46f77e1d8b0bd5c19"},
     {"path": "model-00002-of-00003.safetensors", "sha256": "8c0e72f148366b6a3709e002a98706a33d31aec8515090c856c95b2044f92ae0"},
@@ -37,6 +39,7 @@
    "license": "MIT", "released": "2025-02-19",
    "allow_patterns": ["*.json", "merges.txt", "model-*.safetensors"],
    "assumed_seconds_per_prompt": 0.9,
+   "batch_token_budget": 14000,
    "files": [
     {"path": "model-00001-of-00002.safetensors", "sha256": "bc703090b63eda16f639fa4de7ac54635c23105ab1da2f6ec4d3403151d38ee6"},
     {"path": "model-00002-of-00002.safetensors", "sha256": "7ff79b9d2d31076bac2663393451f6530f4fc8ca49b09002116c92c373dba983"},

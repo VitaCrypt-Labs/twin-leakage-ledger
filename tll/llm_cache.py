@@ -9,8 +9,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DIR = ROOT / "cache" / "llm"
-FORMAT_VERSION = 3
-FALLBACK_THRESHOLD = 0.05  # preregistered in v3: above this per model and attribute the cache is not used
+FORMAT_VERSION = 4
+ACCEPTED_FORMATS = (3, 4)  # 3: written by the v3 code, readable for local checks only (see PREREGISTRATION.md v4)
+FALLBACK_THRESHOLD = 0.05  # technical loss (answer cut off): above this per model and attribute the cache is refused
+WEAK_ABSTENTION = 0.20  # abstention above this on any attribute marks the model a weak attacker; nothing is dropped
+ATTRS = ("diabetes", "depression", "pregnancy")
 LICENSE_TAG = ["Copyright 2026 Paul Burg", "SPDX-License-" + "Identifier: CC0-1.0"]
 
 
@@ -67,12 +70,29 @@ def list_model_files(cache_dir: Path) -> list[Path]:
     return sorted(Path(cache_dir).glob("*.jsonl")) if Path(cache_dir).is_dir() else []
 
 
-def fallback_rates(path: Path) -> dict[str, float]:
-    """Share of answers per attribute that fell back to the base rates (from the stored records)."""
+def record_kinds(rec: dict) -> tuple[list[str], list[str]]:
+    """(lost, abstained) attributes of one record. Records of the v3 code have only `fallback` and `closed`."""
+    if "loss" in rec:
+        return rec["loss"], rec.get("abstain", [])
+    fb = rec.get("fallback", [])
+    return ([], fb) if rec.get("closed", False) else (fb, [])
+
+
+def rates(path: Path) -> dict:
+    """Per attribute: share of answers lost to a cut-off (technical loss) and share of abstentions."""
     _, recs = load_model(path)
     n = max(len(recs), 1)
-    counts: dict[str, int] = {}
+    loss = {a: 0 for a in ATTRS}
+    abst = {a: 0 for a in ATTRS}
     for r in recs.values():
-        for a in r.get("fallback", []):
-            counts[a] = counts.get(a, 0) + 1
-    return {a: counts.get(a, 0) / n for a in ("diabetes", "depression", "pregnancy")}
+        lo, ab = record_kinds(r)
+        for a in lo:
+            loss[a] += 1
+        for a in ab:
+            abst[a] += 1
+    return {"n": len(recs), "loss": {a: v / n for a, v in loss.items()}, "abstain": {a: v / n for a, v in abst.items()}}
+
+
+def fallback_rates(path: Path) -> dict[str, float]:
+    """Technical-loss rate per attribute (the quantity the 5% limit applies to)."""
+    return rates(path)["loss"]

@@ -28,7 +28,7 @@ def test_parse_robust_forms():
     out = a_llm.parse_answer(raw, LABELS)
     assert abs(out["diabetes"][0] - 0.6) < 1e-12 and abs(out["diabetes"][1] - 0.1) < 1e-12
     assert out["depression"] == [0.2] * 5
-    assert abs(out["pregnancy"][0] - 0.75) < 1e-12 and out["pregnancy"][2] == 0.0  # missing keys count as zero
+    assert out["pregnancy"] is None  # a block with missing keys is not guessed (v4)
 
 
 @pytest.mark.parametrize("raw", ["", "I cannot say.", "{not json", '{"diabetes": "high"}', '{"diabetes": {"none": -1, "2": 1, "5": 0, "11": 0, "18": 0}}',
@@ -41,9 +41,9 @@ def test_parse_unreadable_gives_none(raw):
 
 def test_unreadable_answer_falls_back_to_prior_and_is_counted(world):
     prior = a_llm.prior_marginals(world, "doctor", 5)
-    parsed, fb = a_llm.finalize(world, '{"diabetes": [0.1, 0.9, 0, 0, 0]}', prior)
+    parsed, fb, ab, lost = a_llm.finalize(world, '{"diabetes": [0.1, 0.9, 0, 0, 0]}', prior)
     assert parsed["diabetes"] == [0.1, 0.9, 0, 0, 0] or np.allclose(parsed["diabetes"], [0.1, 0.9, 0, 0, 0])
-    assert fb == ["depression", "pregnancy"]
+    assert fb == ["depression", "pregnancy"] and ab == fb and lost == []  # closed object: abstention
     assert parsed["depression"] == prior["depression"]
 
 
@@ -182,8 +182,9 @@ def test_real_truncated_answers_are_salvaged(world):
         assert abs(sum(out["diabetes"]) - 1) < 1e-12 and abs(sum(out["depression"]) - 1) < 1e-12
         assert out["pregnancy"] is None  # cut inside the last block
         prior = a_llm.prior_marginals(world, "doctor", 5)
-        parsed, fb = a_llm.finalize(world, r["raw"], prior)
+        parsed, fb, ab, lost = a_llm.finalize(world, r["raw"], prior)
         assert fb == ["pregnancy"] and parsed["pregnancy"] == prior["pregnancy"]
+        assert lost == ["pregnancy"] and ab == []  # cut off: technical loss, not abstention
 
 
 def test_complete_real_answers_parse_fully_and_partial_ones_keep_good_blocks():
@@ -221,7 +222,7 @@ def test_old_format_cache_is_refused_even_with_low_fallback(world, tmp_path):
         h.pop("format_version")
         p.write_text("\n".join([json.dumps(h)] + lines[1:]) + "\n")
         res = llm_family.evaluate(world, tmp_path)
-        assert res["status"] == "refused" and "older format" in llm_family.refusal_message(res)
+        assert res["status"] == "refused" and "unsupported format" in llm_family.refusal_message(res)
     finally:
         a_llm.SETS.pop("tiny", None)
 
@@ -232,7 +233,7 @@ def test_run_fails_loudly_above_threshold(world, tmp_path, capsys):
         rc = a_llm.main(["--set", "tiny", "--models", "qwen", "--backend", "stub", "--stub-garbage", "3",
                          "--cache-dir", str(tmp_path)])
         out = capsys.readouterr().out
-        assert rc == 3 and "TOO HIGH" in out and "unreadable answers" in out
+        assert rc == 3 and "TOO HIGH" in out and "Technical loss" in out
         rc = a_llm.main(["--set", "tiny", "--models", "phi", "--backend", "stub", "--cache-dir", str(tmp_path)])
         assert rc == 0 and "0.0%" in capsys.readouterr().out
     finally:
